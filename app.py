@@ -19,7 +19,6 @@ def check_password():
         st.title("🔒 Acceso Restringido")
         pwd = st.text_input("Ingresa la contraseña para acceder:", type="password")
         if st.button("Ingresar"):
-            # Obtiene la contraseña configurada en los Secrets (Misterios)
             expected_password = st.secrets.get("APP_PASSWORD", "1234")
             if pwd == expected_password:
                 st.session_state.authenticated = True
@@ -29,7 +28,6 @@ def check_password():
         return False
     return True
 
-# Si el usuario no se ha autenticado, detener la ejecución aquí
 if not check_password():
     st.stop()
 
@@ -72,7 +70,7 @@ with col_paste:
 
 with col_upload:
     uploaded_files = st.file_uploader(
-        "O sube archivos desde tu PC", 
+        "O sube archivos desde tu PC/Celular", 
         type=["png", "jpg", "jpeg"], 
         accept_multiple_files=True
     )
@@ -116,7 +114,7 @@ if st.button("🚀 Auditar Apuesta con Gemini", type="primary"):
     else:
         try:
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            model = genai.GenerativeModel('gemini-3.8-flash')
             
             system_prompt = f"""
             Eres un auditor experto en apuestas deportivas de alto valor (+EV).
