@@ -1,199 +1,147 @@
-import PIL.Image
-import google.generativeai as genai
 import streamlit as st
+import google.generativeai as genai
+from PIL import Image
 from streamlit_paste_button import paste_image_button
 
-# ==========================================
-# 1. CONFIGURACIÓN DE LA PÁGINA WEB
-# ==========================================
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="Auditor de Apuestas +EV",
+    page_title="Agente Auditor +EV",
     page_icon="⚽",
-    layout="centered",
-    initial_sidebar_state="expanded",
+    layout="wide"
 )
 
-st.title("⚽ Agente Auditor de Apuestas Deportivas")
-st.write(
-    "Toma capturas con `Win + Shift + S` y pégalas directamente con el botón"
-    " verde para evaluar la jugada (+EV) descontando la retención del SRI."
-)
+# --- CONTROL DE ACCESO CON CONTRASEÑA ---
+def check_password():
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
 
-# Inicializar estados de memoria de la sesión
-if "lista_imagenes" not in st.session_state:
-  st.session_state.lista_imagenes = []
+    if not st.session_state.authenticated:
+        st.title("🔒 Acceso Restringido")
+        pwd = st.text_input("Ingresa la contraseña para acceder:", type="password")
+        if st.button("Ingresar"):
+            # Obtiene la contraseña configurada en los Secrets (Misterios)
+            expected_password = st.secrets.get("APP_PASSWORD", "1234")
+            if pwd == expected_password:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("❌ Contraseña incorrecta")
+        return False
+    return True
 
-if "last_seen_paste" not in st.session_state:
-  st.session_state.last_seen_paste = None
+# Si el usuario no se ha autenticado, detener la ejecución aquí
+if not check_password():
+    st.stop()
 
-# ==========================================
-# 2. PANEL LATERAL (CONFIGURACIÓN)
-# ==========================================
-st.sidebar.header("⚙️ Configuración del Agente")
+# --- OBTENER CLAVE API DE GEMINI DESDE SECRETS ---
+api_key = st.secrets.get("GEMINI_API_KEY", "")
 
-api_key = st.sidebar.text_input(
-    "Clave API de Gemini:",
-    type="password",
-    help="Ingresa tu API Key de Google AI Studio.",
-)
-
-sri_impuesto = (
-    st.sidebar.slider(
-        "Retención de impuesto SRI (%)",
-        min_value=0,
-        max_value=25,
-        value=15,
-        step=1,
-    )
-    / 100
-)
-
-prob_minima = st.sidebar.slider(
-    "Probabilidad Mínima Exigida (%)",
-    min_value=50,
-    max_value=95,
-    value=85,
-    step=1,
-)
-
-# ==========================================
-# 3. ÁREA DE PEGAR Y SUBIR IMÁGENES
-# ==========================================
-st.subheader("1. Adjuntar capturas de pantalla")
-
-col1, col2 = st.columns(2)
-
-with col1:
-  paste_result = paste_image_button(
-      label="📋 Pegar captura del portapapeles",
-      text_color="#ffffff",
-      background_color="#2e7d32",
-      hover_background_color="#1b5e20",
-  )
-
-  # Control de flujo para evitar repetición al limpiar
-  if (
-      paste_result.image_data is not None
-      and paste_result.image_data != st.session_state.last_seen_paste
-  ):
-    st.session_state.last_seen_paste = paste_result.image_data
-    st.session_state.lista_imagenes.append(paste_result.image_data)
-    st.success("¡Captura pegada con éxito!")
-
-with col2:
-  uploaded_files = st.file_uploader(
-      "O sube archivos desde tu PC",
-      type=["png", "jpg", "jpeg"],
-      accept_multiple_files=True,
-  )
-  if uploaded_files:
-    for file in uploaded_files:
-      img = PIL.Image.open(file)
-      if img not in st.session_state.lista_imagenes:
-        st.session_state.lista_imagenes.append(img)
-
-# ==========================================
-# 4. GESTIÓN DE CAPTURAS (ELIMINACIÓN INDIVIDUAL O TOTAL)
-# ==========================================
-if st.session_state.lista_imagenes:
-  st.markdown("---")
-  col_head1, col_head2 = st.columns([3, 1])
-
-  with col_head1:
-    st.write(
-        f"📷 **Capturas acumuladas:** {len(st.session_state.lista_imagenes)}"
-    )
-
-  with col_head2:
-    if st.button("🗑️ Limpiar todo", type="secondary"):
-      st.session_state.lista_imagenes = []
-      if paste_result.image_data is not None:
-        st.session_state.last_seen_paste = paste_result.image_data
-      st.rerun()
-
-  # Mostrar miniaturas con botón individual de borrado
-  cols = st.columns(min(len(st.session_state.lista_imagenes), 3))
-  i_to_delete = None
-
-  for idx, img in enumerate(st.session_state.lista_imagenes):
-    with cols[idx % 3]:
-      st.image(img, caption=f"Captura {idx + 1}", use_container_width=True)
-      if st.button(
-          f"❌ Eliminar #{idx + 1}", key=f"btn_del_{idx}", use_container_width=True
-      ):
-        i_to_delete = idx
-
-  # Si el usuario hace clic en el botón de eliminar de alguna captura
-  if i_to_delete is not None:
-    st.session_state.lista_imagenes.pop(i_to_delete)
-    st.rerun()
-
-  # ==========================================
-  # 5. EJECUTAR AUDITORÍA
-  # ==========================================
-  st.subheader("2. Ejecutar Auditoría")
-
-  if st.button("🔍 Analizar Apuestas con IA", type="primary"):
+# --- BARRA LATERAL DE CONFIGURACIÓN ---
+with st.sidebar:
+    st.title("⚙️ Configuración del Agente")
+    
     if not api_key:
-      st.error(
-          "⚠️ Ingresa tu Clave API de Gemini en el panel izquierdo para"
-          " continuar."
-      )
+        api_key = st.text_input("Clave API de Gemini:", type="password")
     else:
-      with st.spinner(
-          "El agente está analizando TODAS las capturas y calculando el"
-          " +EV..."
-      ):
+        st.success("✅ Clave API cargada automáticamente")
+    
+    retencion = st.slider("Retención de impuesto SRI (%)", 0, 25, 15)
+    prob_min = st.slider("Probabilidad Mínima Exigida (%)", 50, 95, 85)
+
+# --- CONTENIDO PRINCIPAL ---
+st.title("⚽ Agente Auditor de Apuestas Deportivas")
+st.write("Toma capturas con `Win + Shift + S` y pégalas directamente con el botón verde para evaluar la jugada (+EV) descontando la retención del SRI.")
+
+# --- MANEJO DE IMÁGENES EN SESSION STATE ---
+if "images" not in st.session_state:
+    st.session_state.images = []
+
+st.subheader("1. Agregar capturas de pantalla")
+
+col_paste, col_upload = st.columns([1, 1])
+
+with col_paste:
+    paste_result = paste_image_button(
+        label="📋 Pegar captura del portapapeles",
+        background_color="#28a745",
+        hover_background_color="#218838",
+    )
+    if paste_result.image_data is not None:
+        st.session_state.images.append(paste_result.image_data)
+        st.rerun()
+
+with col_upload:
+    uploaded_files = st.file_uploader(
+        "O sube archivos desde tu PC", 
+        type=["png", "jpg", "jpeg"], 
+        accept_multiple_files=True
+    )
+    if uploaded_files:
+        for file in uploaded_files:
+            img = Image.open(file)
+            if img not in st.session_state.images:
+                st.session_state.images.append(img)
+
+if st.session_state.images:
+    st.write(f"**Imágenes cargadas ({len(st.session_state.images)}):**")
+    
+    if st.button("🗑️ Limpiar todas las imágenes"):
+        st.session_state.images = []
+        st.rerun()
+        
+    cols = st.columns(min(len(st.session_state.images), 4))
+    idx_to_remove = None
+    for i, img in enumerate(st.session_state.images):
+        with cols[i % 4]:
+            st.image(img, use_container_width=True)
+            if st.button(f"❌ Eliminar #{i+1}", key=f"del_{i}"):
+                idx_to_remove = i
+                
+    if idx_to_remove is not None:
+        st.session_state.images.pop(idx_to_remove)
+        st.rerun()
+
+# --- SECCIÓN DE AUDITORÍA ---
+st.subheader("2. Auditoría e Inteligencia de Apuestas")
+prompt_user = st.text_area(
+    "Notas o contexto adicional (opcional):", 
+    placeholder="Ej: Es un partido de vuelta, el equipo local llega con bajas importantes..."
+)
+
+if st.button("🚀 Auditar Apuesta con Gemini", type="primary"):
+    if not api_key:
+        st.error("Por favor ingresa o configura la Clave API de Gemini.")
+    elif not st.session_state.images:
+        st.warning("Debes adjuntar al menos una imagen de la apuesta para auditar.")
+    else:
         try:
-          genai.configure(api_key=api_key)
-
-          try:
-            model = genai.GenerativeModel("gemini-3.8-flash")
-          except Exception:
-            model = genai.GenerativeModel("gemini-1.5-flash")
-
-          prompt_sistema = f"""
-                    ERES UN ANALISTA CUANTITATIVO Y AUDITOR DE RIESGO DE APUESTAS DEPORTIVAS EXPERTO.
-
-                    INSTRUCCIÓN CRÍTICA:
-                    Se te han proporcionado {len(st.session_state.lista_imagenes)} CAPTURAS DE PANTALLA. 
-                    DEBES EXAMINAR Y EXTRAER INFORMACIÓN DE CADA UNA DE ELLAS SIN EXCEPCIÓN.
-
-                    PARÁMETROS DEL USUARIO:
-                    - Impuesto SRI: {sri_impuesto * 100}%
-                    - Probabilidad Mínima Exigida: {prob_minima}%
-
-                    REGLAS DE CÁLCULO:
-                    - Cuota Efectiva Post-SRI: C_efectiva = 1 + (C_nominal - 1) * {1 - sri_impuesto}
-                    - Valor Esperado Neto (+EV): EV = (P_final / 100 * C_efectiva) - 1
-
-                    FORMATO DE RESPUESTA OBLIGATORIO EN MARKDOWN:
-
-                    ### ⚽ Partido: [Nombre del Evento / Equipos]
-
-                    #### 📸 AUDITORÍA POR CAPTURA:
-
-                    (Asegúrate de evaluar al menos 1 o 2 mercados clave y estadísticas visibles de CADA captura individual)
-
-                    * **Captura 1:** [Resumen de lo observado, estadísticas e hilos de apuestas clave]
-                      - **Mercado:** [Nombre Mercado] (Cuota: X.XX) | **P_final:** Z% | **C_efectiva:** X.XX | **+EV:** X.XX%
-                    * **Captura 2:** [Resumen de lo observado, estadísticas e hilos de apuestas clave]
-                      - **Mercado:** [Nombre Mercado] (Cuota: X.XX) | **P_final:** Z% | **C_efectiva:** X.XX | **+EV:** X.XX%
-                    * **Captura 3 (si existe):** [Resumen de lo observado, estadísticas e hilos de apuestas clave]
-                      - **Mercado:** [Nombre Mercado] (Cuota: X.XX) | **P_final:** Z% | **C_efectiva:** X.XX | **+EV:** X.XX%
-
-                    #### 🏆 RESUMEN Y VEREDICTO FINAL:
-                    - **Mejor opción identificada:** [Mercado y Cuota]
-                    - **Veredicto:** **[APROBADA]** o **[RECHAZADA]** (Solo se aprueba si P_final >= {prob_minima}% Y +EV > 0).
-                    - **Justificación detallada:** Explicación basada en las estadísticas cruzadas de todas las capturas.
-                    """
-
-          contenido = [prompt_sistema] + st.session_state.lista_imagenes
-          response = model.generate_content(contenido)
-
-          st.markdown("---")
-          st.markdown("## 📋 Resultado del Análisis Global")
-          st.markdown(response.text)
-
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            
+            system_prompt = f"""
+            Eres un auditor experto en apuestas deportivas de alto valor (+EV).
+            Analiza CADA UNA de las imágenes adjuntas detalladamente.
+            
+            Toma en cuenta los siguientes parámetros de configuración:
+            - Retención de impuesto SRI (Ecuador): {retencion}%
+            - Probabilidad Mínima Exigida: {prob_min}%
+            
+            Proporciona un desglose cuantitativo estructurado:
+            1. Identificación del evento, cuotas y mercado ofertado.
+            2. Análisis de probabilidad base e imparcial.
+            3. Aplicación del filtro Red Teaming (riesgos, trampas o letra chica del mercado).
+            4. Ajuste fiscal descontando el {retencion}% del SRI sobre la ganancia neta.
+            5. Verificación de Valor Esperado Positivo (+EV) y veredicto final (APROBADA / RECHAZADA).
+            
+            Notas del usuario: {prompt_user if prompt_user else 'Ninguna'}
+            """
+            
+            contents = [system_prompt] + st.session_state.images
+            
+            with st.spinner("Analizando jugada y calculando EV..."):
+                response = model.generate_content(contents)
+                st.markdown("### 📊 Informe de Auditoría")
+                st.markdown(response.text)
+                
         except Exception as e:
-          st.error(f"Ocurrió un error al procesar las imágenes: {e}")
+            st.error(f"Ocurrió un error al consultar el modelo: {str(e)}")
