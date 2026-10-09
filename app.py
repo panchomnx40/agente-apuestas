@@ -114,7 +114,7 @@ if st.button("🚀 Auditar Apuesta con Gemini", type="primary"):
     else:
         try:
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-3.8-flash')
+            model = genai.GenerativeModel('gemini-2.0-flash')
             
             system_prompt = f"""
             Eres un auditor experto en apuestas deportivas de alto valor (+EV).
