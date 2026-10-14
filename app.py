@@ -108,7 +108,7 @@ if st.session_state.images_list:
         st.rerun()
 
 # ---------------------------------------------------------
-# SECCIÓN 2: MONTO Y PARÁMETROS DE APUESTA
+# SECCIÓN 2: MONTO DE INVERSIÓN
 # ---------------------------------------------------------
 st.subheader("2. Monto de Inversión")
 
@@ -131,10 +131,10 @@ if st.button("🚀 Auditar Apuesta con Gemini", type="primary"):
     else:
         with st.spinner("Buscando en la web noticias, alineaciones, analizando mercados y valor (+EV)..."):
             try:
-                # Utilizando el modelo activo y actualizado gemini-3.8-flash con búsqueda web
+                # Configuración correcta de herramientas con diccionario para google-generativeai
                 model = genai.GenerativeModel(
-                    model_name="gemini-3.8-flash",
-                    tools=["google_search"]
+                    model_name="gemini-1.5-flash",
+                    tools=[{"google_search_retrieval": {}}]
                 )
 
                 system_prompt = f"""
