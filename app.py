@@ -131,10 +131,10 @@ if st.button("🚀 Auditar Apuesta con Gemini", type="primary"):
     else:
         with st.spinner("Buscando en la web noticias, alineaciones, analizando mercados y valor (+EV)..."):
             try:
-                # Utilizando el modelo oficial gemini-3.8-flash con búsqueda web
+                # Utilizando gemini-3.8-flash con la herramienta google_search corregida
                 model = genai.GenerativeModel(
                     model_name="gemini-3.8-flash",
-                    tools=[{"google_search_retrieval": {}}]
+                    tools=["google_search"]
                 )
 
                 system_prompt = f"""
