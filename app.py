@@ -1,5 +1,6 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from PIL import Image
 import os
 
@@ -44,7 +45,6 @@ with st.sidebar:
     
     api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
     if api_key:
-        genai.configure(api_key=api_key)
         st.success("✔ Clave API cargada automáticamente")
     else:
         st.error("❌ No se encontró GEMINI_API_KEY en los Secrets.")
@@ -131,11 +131,8 @@ if st.button("🚀 Auditar Apuesta con Gemini", type="primary"):
     else:
         with st.spinner("Buscando en la web noticias, alineaciones, analizando mercados y valor (+EV)..."):
             try:
-                # Utilizando gemini-3.8-flash con la herramienta google_search corregida
-                model = genai.GenerativeModel(
-                    model_name="gemini-3.8-flash",
-                    tools=["google_search"]
-                )
+                # Inicializar el cliente oficial google-genai
+                client = genai.Client(api_key=api_key)
 
                 system_prompt = f"""
 Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV).
@@ -171,8 +168,16 @@ INSTRUCCIONES DE FORMATO Y CONTENIDO (Explica todo en un lenguaje claro, directo
    - Sugiere combinaciones o mercados alternativos (ej: doble oportunidad o hándicap protector) para asegurar de mejor manera el capital.
 """
 
-                inputs = [system_prompt] + st.session_state.images_list
-                response = model.generate_content(inputs)
+                # Contenidos enviados al modelo unificando instrucción, imágenes y solicitud
+                contents = [system_prompt] + st.session_state.images_list + ["Analiza las imágenes adjuntas, busca información en la web y genera el informe completo."]
+
+                response = client.models.generate_content(
+                    model='gemini-3.8-flash',
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        tools=[{"google_search": {}}]
+                    )
+                )
 
                 st.markdown("---")
                 st.subheader("📋 Informe de Auditoría y Búsqueda Web")
