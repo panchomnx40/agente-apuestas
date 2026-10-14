@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# CONTROL DE ACCESO (Persistente en sesión)
+# CONTROL DE ACCESO (Persistente en sesión, no se vuelve a pedir)
 # ---------------------------------------------------------
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -34,7 +34,7 @@ if "images_list" not in st.session_state:
 
 # Encabezado principal
 st.title("⚽ Agente Auditor de Apuestas Deportivas")
-st.markdown("Sube o pega tus capturas de pantalla. El agente buscará automáticamente noticias en la web y auditará la jugada (+EV) descontando el SRI.")
+st.markdown("Sube tus capturas de pantalla. El agente buscará automáticamente noticias en la web y auditará la jugada (+EV) descontando el SRI.")
 
 # ---------------------------------------------------------
 # BARRA LATERAL (Configuración)
@@ -75,10 +75,9 @@ with st.sidebar:
 st.subheader("1. Agregar capturas de pantalla")
 
 uploaded_files = st.file_uploader(
-    "Sube tus capturas (o haz clic en el cuadro y presiona Ctrl + V para pegar):",
+    "Sube tus capturas (puedes arrastrarlas, seleccionarlas o presionar Ctrl + V para pegar):",
     type=["png", "jpg", "jpeg"],
-    accept_multiple_files=True,
-    help="Puedes arrastrar tus imágenes, seleccionarlas o pegarlas directamente."
+    accept_multiple_files=True
 )
 
 if uploaded_files:
@@ -132,10 +131,10 @@ if st.button("🚀 Auditar Apuesta con Gemini", type="primary"):
     else:
         with st.spinner("Buscando en la web noticias, alineaciones, analizando mercados y valor (+EV)..."):
             try:
-                # Configuración correcta de herramientas para google-generativeai
+                # Utilizando el modelo activo y actualizado gemini-3.8-flash con búsqueda web
                 model = genai.GenerativeModel(
-                    model_name="gemini-1.5-flash",
-                    tools=[{"google_search_retrieval": {}}]
+                    model_name="gemini-3.8-flash",
+                    tools=["google_search"]
                 )
 
                 system_prompt = f"""
