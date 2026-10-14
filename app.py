@@ -1,6 +1,5 @@
 import streamlit as st
 import google.generativeai as genai
-from streamlit_paste_button import paste_button
 from PIL import Image
 import os
 
@@ -17,7 +16,7 @@ if "images_list" not in st.session_state:
 
 # Encabezado principal
 st.title("⚽ Agente Auditor de Apuestas Deportivas")
-st.markdown("Toma capturas con `Win + Shift + S` y pégalas directamente. El agente buscará automáticamente noticias y bajas en la web para auditar la jugada (+EV) descontando el SRI.")
+st.markdown("Sube tus capturas de pantalla para que el agente busque automáticamente noticias en la web y audite la jugada (+EV) descontando el SRI.")
 
 # ---------------------------------------------------------
 # BARRA LATERAL (Configuración)
@@ -59,32 +58,18 @@ with st.sidebar:
 # ---------------------------------------------------------
 st.subheader("1. Agregar capturas de pantalla")
 
-col_paste, col_upload = st.columns([1, 1])
+uploaded_files = st.file_uploader(
+    "Sube tus capturas (PNG, JPG, JPEG):",
+    type=["png", "jpg", "jpeg"],
+    accept_multiple_files=True,
+    help="Puedes arrastrar tus imágenes aquí o seleccionarlas desde tu PC/Celular."
+)
 
-with col_paste:
-    paste_result = paste_button(
-        label="📋 Pegar captura del portapapeles",
-        background_color="#28a745",
-        text_color="#ffffff",
-        hover_background_color="#218838"
-    )
-    if paste_result.image_data is not None:
-        if not st.session_state.images_list or st.session_state.get("last_pasted") != paste_result.image_data:
-            st.session_state.images_list.append(paste_result.image_data)
-            st.session_state.last_pasted = paste_result.image_data
-            st.toast("¡Imagen pegada con éxito!", icon="✅")
-
-with col_upload:
-    uploaded_files = st.file_uploader(
-        "O sube archivos desde tu PC/Celular",
-        type=["png", "jpg", "jpeg"],
-        accept_multiple_files=True
-    )
-    if uploaded_files:
-        for file in uploaded_files:
-            img = Image.open(file)
-            if img not in st.session_state.images_list:
-                st.session_state.images_list.append(img)
+if uploaded_files:
+    for file in uploaded_files:
+        img = Image.open(file)
+        if img not in st.session_state.images_list:
+            st.session_state.images_list.append(img)
 
 # Mostrar previsualización y opción de eliminar imágenes
 if st.session_state.images_list:
@@ -161,8 +146,8 @@ INSTRUCCIONES DE FORMATO Y CONTENIDO (Explica todo en un lenguaje claro, directo
      * Ganancia Neta Final en mano: $[Calcular] USD.
 
 4. 💡 **VEREDICTO FINAL Y GESTIÓN DE RIESGO (STAKE)**
-   - Veredicto claro: **APROBADA** o **RECHAZADA**.
-   - Sugerencia de Stake: ¿Conviene arriesgar los ${monto_apuesta:.2f} USD completos o es mejor bajar el monto (ej. arriesgar solo el 50%) debido a factores de riesgo encontrados en la web?
+     * Veredicto claro: **APROBADA** o **RECHAZADA**.
+     * Sugerencia de Stake: ¿Conviene arriesgar los ${monto_apuesta:.2f} USD completos o es mejor bajar el monto (ej. arriesgar solo el 50%) debido a factores de riesgo encontrados en la web?
 
 5. 🔀 **COMBINACIONES Y MERCADOS ALTERNATIVOS**
    - Sugiere combinaciones o mercados alternativos (ej: doble oportunidad o hándicap protector) para asegurar de mejor manera el capital.
