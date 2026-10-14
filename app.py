@@ -1,8 +1,14 @@
 import streamlit as st
 import google.generativeai as genai
-from streamlit_paste_button import paste_button
 from PIL import Image
 import os
+
+# Importación segura del botón de pegado para evitar errores de despliegue
+try:
+    from streamlit_paste_button import paste_button
+    HAS_PASTE_BUTTON = True
+except ImportError:
+    HAS_PASTE_BUTTON = False
 
 # Configuración inicial de la página
 st.set_page_config(
@@ -35,7 +41,7 @@ if "images_list" not in st.session_state:
 
 # Encabezado principal
 st.title("⚽ Agente Auditor de Apuestas Deportivas")
-st.markdown("Toma capturas con `Win + Shift + S` y pégalas directamente, o súbelas. El agente buscará automáticamente noticias en la web y auditará la jugada (+EV) descontando el SRI.")
+st.markdown("Pega tus capturas con `Win + Shift + S` o súbelas. El agente buscará automáticamente noticias en la web y auditará la jugada (+EV) descontando el SRI.")
 
 # ---------------------------------------------------------
 # BARRA LATERAL (Configuración)
@@ -80,17 +86,20 @@ st.subheader("1. Agregar capturas de pantalla")
 col_paste, col_upload = st.columns([1, 1])
 
 with col_paste:
-    paste_result = paste_button(
-        label="📋 Pegar captura del portapapeles",
-        background_color="#28a745",
-        text_color="#ffffff",
-        hover_background_color="#218838"
-    )
-    if paste_result.image_data is not None:
-        if not st.session_state.images_list or st.session_state.get("last_pasted") != paste_result.image_data:
-            st.session_state.images_list.append(paste_result.image_data)
-            st.session_state.last_pasted = paste_result.image_data
-            st.toast("¡Imagen pegada con éxito!", icon="✅")
+    if HAS_PASTE_BUTTON:
+        paste_result = paste_button(
+            label="📋 Pegar captura del portapapeles",
+            background_color="#28a745",
+            text_color="#ffffff",
+            hover_background_color="#218838"
+        )
+        if paste_result.image_data is not None:
+            if not st.session_state.images_list or st.session_state.get("last_pasted") != paste_result.image_data:
+                st.session_state.images_list.append(paste_result.image_data)
+                st.session_state.last_pasted = paste_result.image_data
+                st.toast("¡Imagen pegada con éxito!", icon="✅")
+    else:
+        st.info("💡 Para usar el botón de pegado directo, añade `streamlit-paste-button` en tu archivo `requirements.txt` en GitHub.")
 
 with col_upload:
     uploaded_files = st.file_uploader(
