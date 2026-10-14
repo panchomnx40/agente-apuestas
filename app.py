@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# CONTROL DE ACCESO (Persistente en sesión, no se vuelve a pedir)
+# CONTROL DE ACCESO (Persistente en sesión)
 # ---------------------------------------------------------
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -131,9 +131,9 @@ if st.button("🚀 Auditar Apuesta con Gemini", type="primary"):
     else:
         with st.spinner("Buscando en la web noticias, alineaciones, analizando mercados y valor (+EV)..."):
             try:
-                # Configuración correcta de herramientas con diccionario para google-generativeai
+                # Utilizando gemini-2.0-flash con la herramienta de búsqueda web correcta
                 model = genai.GenerativeModel(
-                    model_name="gemini-1.5-flash",
+                    model_name="gemini-2.0-flash",
                     tools=[{"google_search_retrieval": {}}]
                 )
 
