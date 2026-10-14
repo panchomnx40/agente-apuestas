@@ -3,7 +3,7 @@ import google.generativeai as genai
 from PIL import Image
 import os
 
-# Importación segura del botón de pegado para evitar errores de despliegue
+# Importación segura del botón de pegado
 try:
     from streamlit_paste_button import paste_button
     HAS_PASTE_BUTTON = True
@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# CONTROL DE ACCESO (Persistente en sesión, no se vuelve a pedir)
+# CONTROL DE ACCESO (Persistente en sesión)
 # ---------------------------------------------------------
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -41,7 +41,7 @@ if "images_list" not in st.session_state:
 
 # Encabezado principal
 st.title("⚽ Agente Auditor de Apuestas Deportivas")
-st.markdown("Pega tus capturas con `Win + Shift + S` o súbelas. El agente buscará automáticamente noticias en la web y auditará la jugada (+EV) descontando el SRI.")
+st.markdown("Pega tus capturas con `Win + Shift + S` usando el botón verde, o súbelas. El agente buscará automáticamente noticias en la web y auditará la jugada (+EV) descontando el SRI.")
 
 # ---------------------------------------------------------
 # BARRA LATERAL (Configuración)
@@ -49,7 +49,6 @@ st.markdown("Pega tus capturas con `Win + Shift + S` o súbelas. El agente busca
 with st.sidebar:
     st.header("⚙️ Configuración del Agente")
     
-    # Obtener API Key de Secrets o Entorno
     api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
     if api_key:
         genai.configure(api_key=api_key)
@@ -59,7 +58,6 @@ with st.sidebar:
 
     st.markdown("---")
     
-    # Casilleros numéricos editables (+ / -)
     retencion = st.number_input(
         "Retención de impuesto SRI (%)",
         min_value=0.0,
@@ -99,7 +97,7 @@ with col_paste:
                 st.session_state.last_pasted = paste_result.image_data
                 st.toast("¡Imagen pegada con éxito!", icon="✅")
     else:
-        st.info("💡 Para usar el botón de pegado directo, añade `streamlit-paste-button` en tu archivo `requirements.txt` en GitHub.")
+        st.info("💡 El botón de pegado se activará en cuanto se actualice el entorno.")
 
 with col_upload:
     uploaded_files = st.file_uploader(
@@ -117,7 +115,6 @@ with col_upload:
 if st.session_state.images_list:
     st.markdown("### 🖼️ Capturas cargadas para la auditoría:")
     
-    # Botón global para reiniciar / limpiar todas las imágenes
     if st.button("🗑️ Limpiar todas las imágenes (Reiniciar Auditoría)", type="secondary"):
         st.session_state.images_list = []
         if "last_pasted" in st.session_state:
@@ -161,13 +158,11 @@ if st.button("🚀 Auditar Apuesta con Gemini", type="primary"):
     else:
         with st.spinner("Buscando en la web noticias, alineaciones, analizando mercados y valor (+EV)..."):
             try:
-                # Inicializar modelo con herramienta de búsqueda web automática (Google Search Grounding)
                 model = genai.GenerativeModel(
                     model_name="gemini-3.8-flash",
                     tools=["google_search"]
                 )
 
-                # System Prompt autónomo con búsqueda web
                 system_prompt = f"""
 Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV).
 1. Analiza detalladamente CADA UNA de las imágenes adjuntas para identificar los equipos, cuotas y mercados ofertados.
