@@ -3,13 +3,6 @@ import google.generativeai as genai
 from PIL import Image
 import os
 
-# Importación segura del botón de pegado
-try:
-    from streamlit_paste_button import paste_button
-    HAS_PASTE_BUTTON = True
-except ImportError:
-    HAS_PASTE_BUTTON = False
-
 # Configuración inicial de la página
 st.set_page_config(
     page_title="Agente Auditor de Apuestas",
@@ -41,7 +34,7 @@ if "images_list" not in st.session_state:
 
 # Encabezado principal
 st.title("⚽ Agente Auditor de Apuestas Deportivas")
-st.markdown("Pega tus capturas con `Win + Shift + S` usando el botón verde, o súbelas. El agente buscará automáticamente noticias en la web y auditará la jugada (+EV) descontando el SRI.")
+st.markdown("Sube o pega tus capturas de pantalla. El agente buscará automáticamente noticias en la web y auditará la jugada (+EV) descontando el SRI.")
 
 # ---------------------------------------------------------
 # BARRA LATERAL (Configuración)
@@ -81,35 +74,18 @@ with st.sidebar:
 # ---------------------------------------------------------
 st.subheader("1. Agregar capturas de pantalla")
 
-col_paste, col_upload = st.columns([1, 1])
+uploaded_files = st.file_uploader(
+    "Sube tus capturas (o haz clic en el cuadro y presiona Ctrl + V para pegar):",
+    type=["png", "jpg", "jpeg"],
+    accept_multiple_files=True,
+    help="Puedes arrastrar tus imágenes, seleccionarlas o pegarlas directamente."
+)
 
-with col_paste:
-    if HAS_PASTE_BUTTON:
-        paste_result = paste_button(
-            label="📋 Pegar captura del portapapeles",
-            background_color="#28a745",
-            text_color="#ffffff",
-            hover_background_color="#218838"
-        )
-        if paste_result.image_data is not None:
-            if not st.session_state.images_list or st.session_state.get("last_pasted") != paste_result.image_data:
-                st.session_state.images_list.append(paste_result.image_data)
-                st.session_state.last_pasted = paste_result.image_data
-                st.toast("¡Imagen pegada con éxito!", icon="✅")
-    else:
-        st.info("💡 El botón de pegado se activará en cuanto se actualice el entorno.")
-
-with col_upload:
-    uploaded_files = st.file_uploader(
-        "O sube archivos desde tu PC/Celular",
-        type=["png", "jpg", "jpeg"],
-        accept_multiple_files=True
-    )
-    if uploaded_files:
-        for file in uploaded_files:
-            img = Image.open(file)
-            if img not in st.session_state.images_list:
-                st.session_state.images_list.append(img)
+if uploaded_files:
+    for file in uploaded_files:
+        img = Image.open(file)
+        if img not in st.session_state.images_list:
+            st.session_state.images_list.append(img)
 
 # Mostrar previsualización, opción de eliminar individualmente y botón para limpiar todo
 if st.session_state.images_list:
@@ -117,8 +93,6 @@ if st.session_state.images_list:
     
     if st.button("🗑️ Limpiar todas las imágenes (Reiniciar Auditoría)", type="secondary"):
         st.session_state.images_list = []
-        if "last_pasted" in st.session_state:
-            del st.session_state.last_pasted
         st.rerun()
 
     cols = st.columns(min(len(st.session_state.images_list), 4))
