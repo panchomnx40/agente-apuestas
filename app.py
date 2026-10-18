@@ -37,7 +37,7 @@ if "scan_result" not in st.session_state:
 
 # Encabezado principal
 st.title("⚽ Value Radar: Escáner y Auditor de Apuestas")
-st.markdown("Sistema de dos fases: **1)** Escaneo masivo de la cartelera de Betano. **2)** Auditoría quirúrgica (+EV) con búsqueda web y SRI.")
+st.markdown("Sistema de dos fases: **1)** Radar de valor para filtrar las mejores oportunidades de la cartelera. **2)** Auditoría quirúrgica (+EV) con búsqueda web y SRI.")
 
 # ---------------------------------------------------------
 # BARRA LATERAL (Configuración)
@@ -72,12 +72,12 @@ with st.sidebar:
     )
 
 # ---------------------------------------------------------
-# FASE 1: ESCÁNER MASIVO DE PARTIDOS
+# FASE 1: RADAR DE VALOR (FILTRADO DE OPORTUNIDADES)
 # ---------------------------------------------------------
-st.subheader("Fase 1: Escaneo de Cartelera (Betano)")
+st.subheader("Fase 1: Radar de Oportunidades (Betano)")
 
 uploaded_files = st.file_uploader(
-    "Sube tu captura con la lista de partidos y cuotas:",
+    "Sube tu captura con la cartelera de partidos:",
     type=["png", "jpg", "jpeg"],
     accept_multiple_files=True
 )
@@ -103,21 +103,27 @@ if st.session_state.images_list:
             st.session_state.images_list.pop(index)
         st.rerun()
 
-    if st.button("🔍 Escanear Jornada y Extraer Partidos", type="primary"):
+    if st.button("🎯 Escanear y Filtrar Mejores Oportunidades", type="primary"):
         if not api_key:
             st.error("❌ Falta la clave API.")
         else:
-            with st.spinner("Escaneando cartelera de partidos y detectando cuotas en la imagen..."):
+            with st.spinner("Analizando la cartelera y filtrando partidos con mayor potencial..."):
                 try:
                     client = genai.Client(api_key=api_key)
+                    
+                    # Prompt actualizado para que actúe estrictamente como un filtro de valor
                     scan_prompt = """
-                    Eres un experto analista de mercados de apuestas. Analiza detalladamente la(s) imagen(es) de la cartelera de partidos adjuntas.
-                    Extrae TODOS los partidos visibles con sus respectivas cuotas (1X2 u otros mercados principales).
-                    Presenta la información de forma limpia, estructurada y numerada, indicando:
+                    Eres un experto analista de mercados de apuestas y cazador de valor (+EV). 
+                    Analiza detalladamente la(s) imagen(es) de la cartelera de partidos adjuntas.
+                    
+                    INSTRUCCIÓN CRÍTICA: NO listes todos los partidos de forma genérica. FILTRA y SELECCIONA ÚNICAMENTE aquellos encuentros que presenten cuotas más atractivas, desproporcionadas o con mayor potencial de valor para apostar. Descarta los partidos aburridos o sin atractivo.
+                    
+                    Presenta una lista limpia y directa con las mejores oportunidades detectadas, indicando:
                     1. Nombre del Partido (Local vs Visitante).
-                    2. Cuotas observadas.
-                    3. Una breve observación preliminar si notas alguna cuota desproporcionada o interesante para investigar.
+                    2. Cuotas clave observadas.
+                    3. Por qué destaca como una oportunidad interesante a investigar.
                     """
+                    
                     contents = [scan_prompt] + st.session_state.images_list
                     response = client.models.generate_content(
                         model='gemini-3.8-flash',
@@ -130,10 +136,10 @@ if st.session_state.images_list:
 # Mostrar resultados del escaneo si ya se procesó la Fase 1
 if st.session_state.scan_result:
     st.markdown("---")
-    st.subheader("📋 Resultados del Escaneo (Partidos Detectados)")
+    st.subheader("🎯 Oportunidades Detectadas por el Radar")
     st.markdown(st.session_state.scan_result)
 
-    if st.button("🗑️ Limpiar Escaneo y Cargar Otra Captura", type="secondary"):
+    if st.button("🗑️ Limpiar Radar y Cargar Otra Captura", type="secondary"):
         st.session_state.images_list = []
         st.session_state.scan_result = None
         st.rerun()
@@ -142,10 +148,10 @@ if st.session_state.scan_result:
     # FASE 2: AUDITORÍA QUIRÚRGICA (+EV)
     # ---------------------------------------------------------
     st.markdown("---")
-    st.subheader("Fase 2: Auditoría Quirúrgica de un Partido")
-    st.markdown("Copia y pega el nombre del partido que te llamó la atención de la lista anterior para investigarlo a fondo.")
+    st.subheader("Fase 2: Auditoría Quirúrgica de la Oportunidad Elegida")
+    st.markdown("Copia el nombre del partido que más te haya llamado la atención del radar anterior para investigarlo a fondo.")
 
-    selected_match = st.text_input("Partido a auditar (ej. Equipo A vs Equipo B):")
+    selected_match = st.text_input("Partido seleccionado para auditar (ej. Equipo A vs Equipo B):")
     monto_apuesta = st.number_input(
         "Monto a apostar ($ USD):",
         min_value=1.0,
