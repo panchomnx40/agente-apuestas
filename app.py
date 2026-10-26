@@ -254,7 +254,6 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
             help="Monto simulado para calcular ganancias y riesgo"
         )
 
-        # NUEVO: Caja para instrucción u observación adicional opcional
         instruccion_extra = st.text_area(
             "💡 Instrucción o nota adicional para el agente (Opcional):",
             placeholder="Ej: Ten en cuenta que el equipo local tiene 3 bajas en defensa, o prioriza hándicaps asiáticos...",
@@ -363,12 +362,16 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
             st.image(boleto_img, caption="Boleto de Betano cargado", width=300)
             if st.button("🔍 Validar Boleto con Agente", key="val_bol_btn_f2"):
                 with st.spinner("Validando boleto..."):
-                    val_resp = client.models.generate_content(
-                        model='gemini-3.8-flash',
-                        contents=["Analiza esta captura de boleto de apuestas de Betano y confirma si las cuotas y montos son correctos según la auditoría.", boleto_img]
-                    )
-                    st.success("✔ Validación del Boleto:")
-                    st.markdown(val_resp.text)
+                    try:
+                        client_val = genai.Client(api_key=api_key)
+                        val_resp = client_val.models.generate_content(
+                            model='gemini-3.8-flash',
+                            contents=["Analiza esta captura de boleto de apuestas de Betano y confirma si las cuotas y montos son correctos según la auditoría.", boleto_img]
+                        )
+                        st.success("✔ Validación del Boleto:")
+                        st.markdown(val_resp.text)
+                    except Exception as e:
+                        st.error(f"Error al validar el boleto: {str(e)}")
 
         st.markdown("---")
         st.subheader("🏁 Cierre Post-Partido (Lectura Automática de Resultado)")
@@ -383,7 +386,8 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
             if st.button("🤖 Analizar Resultado y Registrar en Historial Automáticamente", key="auto_res_btn_f2"):
                 with st.spinner("Leyendo resultado final y actualizando historial..."):
                     try:
-                        analisis_res = client.models.generate_content(
+                        client_res = genai.Client(api_key=api_key)
+                        analisis_res = client_res.models.generate_content(
                             model='gemini-3.8-flash',
                             contents=[f"""
                             Analiza esta imagen de resultado final del partido '{target_match}' donde se apostó '{tipo_jugada_str}'.
@@ -481,7 +485,6 @@ else:
         help="Monto simulado para calcular ganancias y riesgo"
     )
 
-    # NUEVO: Caja para instrucción u observación adicional opcional en modo directo
     instruccion_extra_d = st.text_area(
         "💡 Instrucción o nota adicional para el agente (Opcional):",
         placeholder="Ej: Ten en cuenta que el equipo local tiene 3 bajas en defensa, o prioriza hándicaps asiáticos...",
@@ -592,12 +595,16 @@ else:
             st.image(boleto_img_d, caption="Boleto de Betano cargado", width=300)
             if st.button("🔍 Validar Boleto con Agente", key="val_bol_btn_d"):
                 with st.spinner("Validando boleto..."):
-                    val_resp_d = client.models.generate_content(
-                        model='gemini-3.8-flash',
-                        contents=["Analiza esta captura de boleto de apuestas de Betano y confirma si las cuotas y montos son correctos según la auditoría.", boleto_img_d]
-                    )
-                    st.success("✔ Validación del Boleto:")
-                    st.markdown(val_resp_d.text)
+                    try:
+                        client_val_d = genai.Client(api_key=api_key)
+                        val_resp_d = client_val_d.models.generate_content(
+                            model='gemini-3.8-flash',
+                            contents=["Analiza esta captura de boleto de apuestas de Betano y confirma si las cuotas y montos son correctos según la auditoría.", boleto_img_d]
+                        )
+                        st.success("✔ Validación del Boleto:")
+                        st.markdown(val_resp_d.text)
+                    except Exception as e:
+                        st.error(f"Error al validar el boleto: {str(e)}")
 
         st.markdown("---")
         st.subheader("🏁 Cierre Post-Partido (Lectura Automática de Resultado)")
@@ -612,7 +619,8 @@ else:
             if st.button("🤖 Analizar Resultado y Registrar en Historial Automáticamente", key="auto_res_btn_d"):
                 with st.spinner("Leyendo resultado final y actualizando historial..."):
                     try:
-                        analisis_res_d = client.models.generate_content(
+                        client_res_d = genai.Client(api_key=api_key)
+                        analisis_res_d = client_res_d.models.generate_content(
                             model='gemini-3.8-flash',
                             contents=[f"""
                             Analiza esta imagen de resultado final del partido '{nombre_reg}' donde se apostó '{tipo_jugada_str_d}'.
