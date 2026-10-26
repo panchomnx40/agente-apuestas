@@ -66,7 +66,7 @@ if "historial" not in st.session_state:
 
 # Encabezado principal
 st.title("⚽ Value Radar: Escáner, Auditor y Ciclo de Aprendizaje")
-st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación de Boleto en Betano. **3)** Registro de Resultados Post-Partido para Memoria del Agente.")
+st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Selección modular de apuestas (Directas o Combinadas). **3)** Validación y Memoria de Aprendizaje.")
 
 # ---------------------------------------------------------
 # BARRA LATERAL (Configuración e Historial Rápido)
@@ -288,7 +288,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                            - 🧠 **ANÁLISIS DE APRENDIZAJE BASADO EN TU HISTORIAL**
                            - 🌐 **INVESTIGACIÓN Y NOTICIAS DE LA WEB (ÚLTIMO MINUTO)**
                            - 💰 **CÁLCULO FINANCIERO Y GANANCIA NETA (POST-SRI {retencion}%)**
-                           - 💡 **VEREDICTO FINAL Y RECOMENDACIÓN DE STAKE (GESTIÓN DE RIESGO)**: Da un veredicto claro (APROBADA / RECHAZADA) y una recomendación EXPLÍCITA de Stake (indica si se debe arriesgar el 100% o usar una fracción, con justificación).
+                           - 💡 **VEREDICTO FINAL Y RECOMENDACIÓN DE STAKE (GESTIÓN DE RIESGO)**: Da un veredicto claro (APROBADA / RECHAZADA) para el mercado principal y una recomendación EXPLÍCITA de Stake.
                            - 🔀 **COMBINACIONES O MERCADOS ALTERNATIVOS**
                         """
                         
@@ -311,26 +311,39 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
         st.markdown(st.session_state.audit_result)
 
         st.markdown("---")
-        st.subheader("📝 Gestión del Boleto y Registro en Historial")
+        st.subheader("☑️ Selección Modular de Apuesta (Directa y/o Combinada)")
+        st.caption("Marca las casillas según las opciones que decidas apostar. Si marcas varias, se registrará automáticamente como Apuesta Combinada (Parley).")
         
-        # Opciones de selección rápida del mercado a apostar
-        tipo_apuesta_sel = st.radio(
-            "¿Qué tipo de apuesta deseas registrar basada en esta auditoría?",
-            [
-                "✅ Mercado Principal (Aprobar directamente)",
-                "🔀 Alguna de las Combinadas / Mercados Alternativos sugeridos",
-                "✍️ Ingresar mercado manualmente"
-            ],
-            key="tipo_ap_f2"
-        )
+        # Checkboxes individuales para cada tipo de opción
+        sel_directa = st.checkbox("✅ Registrar Opción Directa / Principal Aprobada", key="chk_dir_f2")
+        sel_alt_1 = st.checkbox("🔀 Combinada / Alternativa 1 (Ej. Doble Oportunidad / + Goles)", key="chk_alt1_f2")
+        sel_alt_2 = st.checkbox("🔀 Combinada / Alternativa 2 (Ej. Total de Goles / Más 1.5)", key="chk_alt2_f2")
+        sel_alt_3 = st.checkbox("🔀 Combinada / Alternativa 3 (Ej. Total de Córneres)", key="chk_alt3_f2")
         
-        mercado_a_registrar = ""
-        if tipo_apuesta_sel == "✅ Mercado Principal (Aprobar directamente)":
-            mercado_a_registrar = f"Mercado Principal - {target_match}"
-        elif tipo_apuesta_sel == "🔀 Alguna de las Combinadas / Mercados Alternativos sugeridos":
-            mercado_a_registrar = st.text_input("Especifica cuál combinada o alternativa elegiste:", placeholder="Ej: Doble Oportunidad / Más de 1.5 Goles")
+        # Campo personalizado por si desea afinar el texto de la combinada
+        custom_mercado = st.text_input("Detalle o notas adicionales de tu selección:", placeholder="Ej: Doble Oportunidad + Más de 1.5 Goles", key="txt_custom_f2")
+
+        # Compilar la selección de mercados de forma inteligente
+        mercados_seleccionados = []
+        if sel_directa:
+            mercados_seleccionados.append("Principal Aprobada")
+        if sel_alt_1:
+            mercados_seleccionados.append("Alternativa 1")
+        if sel_alt_2:
+            mercados_seleccionados.append("Alternativa 2")
+        if sel_alt_3:
+            mercados_seleccionados.append("Alternativa 3")
+        if custom_mercado:
+            mercados_seleccionados.append(custom_mercado)
+
+        if len(mercados_seleccionados) > 1:
+            tipo_jugada_str = "Combinada (Parley): " + " + ".join(mercados_seleccionados)
+        elif len(mercados_seleccionados) == 1:
+            tipo_jugada_str = f"Directa: {mercados_seleccionados[0]}"
         else:
-            mercado_a_registrar = st.text_input("Escribe el mercado apostado:", placeholder="Ej: Gana Local + Ambos Anotan")
+            tipo_jugada_str = "Apuesta General"
+
+        st.info(f"📌 **Estructura detectada para registro:** {tipo_jugada_str}")
 
         # Paso opcional: Subir captura del boleto en Betano para validación final
         st.markdown("#### 🎫 Validación de Boleto en Betano (Opcional)")
@@ -340,7 +353,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
         if boleto_file:
             boleto_img = Image.open(boleto_file)
             st.image(boleto_img, caption="Boleto de Betano cargado", width=300)
-            if st.button("🔍 Validar Boleto con Agente"):
+            if st.button("🔍 Validar Boleto con Agente", key="val_bol_btn_f2"):
                 with st.spinner("Validando boleto..."):
                     val_resp = client.models.generate_content(
                         model='gemini-3.8-flash',
@@ -359,13 +372,13 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
         if resultado_file:
             res_img = Image.open(resultado_file)
             st.image(res_img, caption="Captura de resultado final", width=300)
-            if st.button("🤖 Analizar Resultado y Registrar en Historial Automáticamente"):
+            if st.button("🤖 Analizar Resultado y Registrar en Historial Automáticamente", key="auto_res_btn_f2"):
                 with st.spinner("Leyendo resultado final y actualizando historial..."):
                     try:
                         analisis_res = client.models.generate_content(
                             model='gemini-3.8-flash',
                             contents=[f"""
-                            Analiza esta imagen de resultado final del partido '{target_match}' donde se apostó '{mercado_a_registrar}'.
+                            Analiza esta imagen de resultado final del partido '{target_match}' donde se apostó '{tipo_jugada_str}'.
                             Determina estrictamente si la apuesta fue 'Ganada', 'Perdida' o 'Nula'.
                             Responde en el formato exacto:
                             ESTADO: [Ganada / Perdida / Nula]
@@ -383,7 +396,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                         # Guardar automáticamente en historial
                         nuevo_registro = {
                             "partido": target_match,
-                            "mercado": mercado_a_registrar if mercado_a_registrar else "Apuesta General",
+                            "mercado": tipo_jugada_str,
                             "resultado": estado_detectado,
                             "monto": monto_apostado_final
                         }
@@ -397,13 +410,13 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
 
         # Opción manual alternativa por si no se sube foto de resultado
         with st.expander("📝 Registrar resultado manualmente (Sin subir foto de resultado)"):
-            with st.form("form_ manual_f2"):
+            with st.form("form_manual_f2"):
                 res_manual = st.selectbox("Resultado real:", ["Ganada", "Perdida", "Nula"], key="rm_f2")
-                sub_manual = st.form_submit_button("💾 Guardar Manualmente")
+                sub_manual = st.form_submit_button("💾 Guardar Mancomunadamente / Manual")
                 if sub_manual:
                     reg_man = {
                         "partido": target_match,
-                        "mercado": mercado_a_registrar if mercado_a_registrar else "Apuesta General",
+                        "mercado": tipo_jugada_str,
                         "resultado": res_manual,
                         "monto": monto_apostado_final
                     }
@@ -499,7 +512,7 @@ else:
                        - 🧠 **ANÁLISIS DE APRENDIZAJE BASADO EN TU HISTORIAL**
                        - 🌐 **INVESTIGACIÓN Y NOTICIAS DE LA WEB (ÚLTIMO MINUTO)**
                        - 💰 **CÁLCULO FINANCIERO Y GANANCIA NETA (POST-SRI {retencion}%)**
-                       - 💡 **VEREDICTO FINAL Y RECOMENDACIÓN DE STAKE (GESTIÓN DE RIESGO)**: Da un veredicto claro (APROBADA / RECHAZADA) y una recomendación EXPLÍCITA de Stake.
+                       - 💡 **VEREDICTO FINAL Y RECOMENDACIÓN DE STAKE (GESTIÓN DE RIESGO)**
                        - 🔀 **COMBINACIONES O MERCADOS ALTERNATIVOS**
                     """
                     
@@ -522,26 +535,38 @@ else:
         st.markdown(st.session_state.direct_audit_result)
 
         st.markdown("---")
-        st.subheader("📝 Gestión del Boleto y Registro en Historial")
+        st.subheader("☑️ Selección Modular de Apuesta (Directa y/o Combinada)")
+        st.caption("Marca las casillas según las opciones que decidas apostar. Si marcas varias, se registrará como Apuesta Combinada (Parley).")
         
-        tipo_apuesta_sel_d = st.radio(
-            "¿Qué tipo de apuesta deseas registrar basada en esta auditoría?",
-            [
-                "✅ Mercado Principal (Aprobar directamente)",
-                "🔀 Alguna de las Combinadas / Mercados Alternativos sugeridos",
-                "✍️ Ingresar mercado manualmente"
-            ],
-            key="tipo_ap_d"
-        )
+        sel_directa_d = st.checkbox("✅ Registrar Opción Directa / Principal Aprobada", key="chk_dir_d")
+        sel_alt_1_d = st.checkbox("🔀 Combinada / Alternativa 1 (Ej. Doble Oportunidad / + Goles)", key="chk_alt1_d")
+        sel_alt_2_d = st.checkbox("🔀 Combinada / Alternativa 2 (Ej. Total de Goles / Más 1.5)", key="chk_alt2_d")
+        sel_alt_3_d = st.checkbox("🔀 Combinada / Alternativa 3 (Ej. Total de Córneres)", key="chk_alt3_d")
         
-        nombre_reg = direct_match_name if direct_match_name else "Partido Directo"
-        mercado_a_registrar_d = ""
-        if tipo_apuesta_sel_d == "✅ Mercado Principal (Aprobar directamente)":
-            mercado_a_registrar_d = f"Mercado Principal - {nombre_reg}"
-        elif tipo_apuesta_sel_d == "🔀 Alguna de las Combinadas / Mercados Alternativos sugeridos":
-            mercado_a_registrar_d = st.text_input("Especifica cuál combinada o alternativa elegiste:", placeholder="Ej: Doble Oportunidad", key="alt_d")
+        custom_mercado_d = st.text_input("Detalle o notas adicionales de tu selección:", placeholder="Ej: Doble Oportunidad + Más de 1.5 Goles", key="txt_custom_d")
+
+        mercados_seleccionados_d = []
+        if sel_directa_d:
+            mercados_seleccionados_d.append("Principal Aprobada")
+        if sel_alt_1_d:
+            mercados_seleccionados_d.append("Alternativa 1")
+        if sel_alt_2_d:
+            mercados_seleccionados_d.append("Alternativa 2")
+        if sel_alt_3_d:
+            mercados_seleccionados_d.append("Alternativa 3")
+        if custom_mercado_d:
+            mercados_seleccionados_d.append(custom_mercado_d)
+
+        if len(mercados_seleccionados_d) > 1:
+            tipo_jugada_str_d = "Combinada (Parley): " + " + ".join(mercados_seleccionados_d)
+        elif len(mercados_seleccionados_d) == 1:
+            tipo_jugada_str_d = f"Directa: {mercados_seleccionados_d[0]}"
         else:
-            mercado_a_registrar_d = st.text_input("Escribe el mercado apostado:", placeholder="Ej: Gana Local", key="man_d")
+            tipo_jugada_str_d = "Apuesta General"
+
+        st.info(f"📌 **Estructura detectada para registro:** {tipo_jugada_str_d}")
+
+        nombre_reg = direct_match_name if direct_match_name else "Partido Directo"
 
         st.markdown("#### 🎫 Validación de Boleto en Betano (Opcional)")
         boleto_file_d = st.file_uploader("Sube tu boleto de apuesta:", type=["png", "jpg", "jpeg"], key="boleto_d")
@@ -549,7 +574,7 @@ else:
         if boleto_file_d:
             boleto_img_d = Image.open(boleto_file_d)
             st.image(boleto_img_d, caption="Boleto de Betano cargado", width=300)
-            if st.button("🔍 Validar Boleto con Agente", key="val_bol_d"):
+            if st.button("🔍 Validar Boleto con Agente", key="val_bol_btn_d"):
                 with st.spinner("Validando boleto..."):
                     val_resp_d = client.models.generate_content(
                         model='gemini-3.8-flash',
@@ -568,13 +593,13 @@ else:
         if resultado_file_d:
             res_img_d = Image.open(resultado_file_d)
             st.image(res_img_d, caption="Captura de resultado final", width=300)
-            if st.button("🤖 Analizar Resultado y Registrar en Historial Automáticamente", key="auto_res_d"):
+            if st.button("🤖 Analizar Resultado y Registrar en Historial Automáticamente", key="auto_res_btn_d"):
                 with st.spinner("Leyendo resultado final y actualizando historial..."):
                     try:
                         analisis_res_d = client.models.generate_content(
                             model='gemini-3.8-flash',
                             contents=[f"""
-                            Analiza esta imagen de resultado final del partido '{nombre_reg}' donde se apostó '{mercado_a_registrar_d}'.
+                            Analiza esta imagen de resultado final del partido '{nombre_reg}' donde se apostó '{tipo_jugada_str_d}'.
                             Determina estrictamente si la apuesta fue 'Ganada', 'Perdida' o 'Nula'.
                             Responde en el formato exacto:
                             ESTADO: [Ganada / Perdida / Nula]
@@ -591,7 +616,7 @@ else:
                             
                         nuevo_registro_d = {
                             "partido": nombre_reg,
-                            "mercado": mercado_a_registrar_d if mercado_a_registrar_d else "Apuesta General",
+                            "mercado": tipo_jugada_str_d,
                             "resultado": estado_detectado_d,
                             "monto": monto_apostado_final_d
                         }
@@ -610,7 +635,7 @@ else:
                 if sub_manual_d:
                     reg_man_d = {
                         "partido": nombre_reg,
-                        "mercado": mercado_a_registrar_d if mercado_a_registrar_d else "Apuesta General",
+                        "mercado": tipo_jugada_str_d,
                         "resultado": res_manual_d,
                         "monto": monto_apostado_final_d
                     }
@@ -619,7 +644,7 @@ else:
                     st.success("✅ ¡Registrado manualmente con éxito!")
                     st.rerun()
 
-        if st.button("🔄 Limpiar y realizar otra auditoría directa", type="secondary"):
+        if st.button("🔄 Descartar esta auditoría y probar otro partido", type="secondary"):
             st.session_state.direct_audit_result = None
             st.session_state.direct_images_list = []
             st.rerun()
