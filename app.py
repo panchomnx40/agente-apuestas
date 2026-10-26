@@ -29,7 +29,7 @@ def guardar_historial(historial):
         json.dump(historial, f, ensure_ascii=False, indent=4)
 
 # ---------------------------------------------------------
-# CONTROL DE ACCESO (Persistente en sesión)
+# CONTROL DE ACCESO (Persistente y optimizado para móviles)
 # ---------------------------------------------------------
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -37,16 +37,18 @@ if "authenticated" not in st.session_state:
 app_password = st.secrets.get("APP_PASSWORD", "")
 if app_password and not st.session_state.authenticated:
     st.title("🔒 Acceso Restringido")
-    pwd_input = st.text_input("Ingrese la contraseña de acceso:", type="password")
-    if st.button("Ingresar"):
-        if pwd_input == app_password:
-            st.session_state.authenticated = True
-            st.rerun()
-        else:
-            st.error("Contraseña incorrecta.")
+    with st.form("form_login"):
+        pwd_input = st.text_input("Ingrese la contraseña de acceso:", type="password")
+        submit_pwd = st.form_submit_button("Ingresar")
+        if submit_pwd:
+            if pwd_input == app_password:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("Contraseña incorrecta.")
     st.stop()
 
-# Inicializar estados en sesión
+# Inicializar estados en sesión para evitar pérdidas al cambiar de app en móviles
 if "images_list" not in st.session_state:
     st.session_state.images_list = []
 if "scan_result" not in st.session_state:
@@ -66,7 +68,7 @@ if "historial" not in st.session_state:
 
 # Encabezado principal
 st.title("⚽ Value Radar: Escáner, Auditor y Ciclo de Aprendizaje")
-st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Selección modular de apuestas (Directas o Combinadas). **3)** Validación y Memoria de Aprendizaje.")
+st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Selección modular de apuestas. **3)** Validación y Memoria de Aprendizaje.")
 
 # ---------------------------------------------------------
 # BARRA LATERAL (Configuración e Historial Rápido)
@@ -252,6 +254,13 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
             help="Monto simulado para calcular ganancias y riesgo"
         )
 
+        # NUEVO: Caja para instrucción u observación adicional opcional
+        instruccion_extra = st.text_area(
+            "💡 Instrucción o nota adicional para el agente (Opcional):",
+            placeholder="Ej: Ten en cuenta que el equipo local tiene 3 bajas en defensa, o prioriza hándicaps asiáticos...",
+            key="extra_prompt_f2"
+        )
+
         if st.button("🚀 Auditar con Aprendizaje Histórico (Web Search + SRI)", type="primary"):
             if not target_match:
                 st.warning("⚠️ Selecciona o ingresa un partido para auditar.")
@@ -267,11 +276,14 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                         else:
                             resumen_historial += "Aún no hay historial registrado. Esta es la primera auditoría.\n"
 
+                        nota_usuario = f"\nNOTA EXTRA DEL USUARIO: {instruccion_extra}\n" if instruccion_extra else ""
+
                         audit_prompt = f"""
                         Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con memoria analítica.
                         El usuario va a auditar el siguiente partido: "{target_match}".
                         
                         {resumen_historial}
+                        {nota_usuario}
                         
                         INSTRUCCIÓN DE APRENDIZAJE: Revisa el historial previo del usuario. Si detectas patrones de fallos en ciertos mercados o ligas similares, ajusta tus recomendaciones y advierte al usuario para evitar cometer los mismos errores.
                         
@@ -282,7 +294,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
 
                         INSTRUCCIONES DE FORMATO Y CONTENIDO:
                         1. UTILIZA OBLIGATORIAMENTE Google Search para buscar noticias recientes, bajas y lesiones de este evento.
-                        2. Analiza las capturas de mercados (si las hay) evaluando combinadas o alternativas.
+                        2. Analiza las capturas de mercados (si las hay) evaluando combinadas o alternativas y toma muy en cuenta la nota extra del usuario si la hay.
                         3. Genera el informe estructurado:
                            - 📌 **EVENTO Y MERCADOS EVALUADOS**
                            - 🧠 **ANÁLISIS DE APRENDIZAJE BASADO EN TU HISTORIAL**
@@ -314,16 +326,13 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
         st.subheader("☑️ Selección Modular de Apuesta (Directa y/o Combinada)")
         st.caption("Marca las casillas según las opciones que decidas apostar. Si marcas varias, se registrará automáticamente como Apuesta Combinada (Parley).")
         
-        # Checkboxes individuales para cada tipo de opción
         sel_directa = st.checkbox("✅ Registrar Opción Directa / Principal Aprobada", key="chk_dir_f2")
         sel_alt_1 = st.checkbox("🔀 Combinada / Alternativa 1 (Ej. Doble Oportunidad / + Goles)", key="chk_alt1_f2")
         sel_alt_2 = st.checkbox("🔀 Combinada / Alternativa 2 (Ej. Total de Goles / Más 1.5)", key="chk_alt2_f2")
         sel_alt_3 = st.checkbox("🔀 Combinada / Alternativa 3 (Ej. Total de Córneres)", key="chk_alt3_f2")
         
-        # Campo personalizado por si desea afinar el texto de la combinada
         custom_mercado = st.text_input("Detalle o notas adicionales de tu selección:", placeholder="Ej: Doble Oportunidad + Más de 1.5 Goles", key="txt_custom_f2")
 
-        # Compilar la selección de mercados de forma inteligente
         mercados_seleccionados = []
         if sel_directa:
             mercados_seleccionados.append("Principal Aprobada")
@@ -345,7 +354,6 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
 
         st.info(f"📌 **Estructura detectada para registro:** {tipo_jugada_str}")
 
-        # Paso opcional: Subir captura del boleto en Betano para validación final
         st.markdown("#### 🎫 Validación de Boleto en Betano (Opcional)")
         st.caption("Sube la captura de tu apuesta ya realizada en Betano para que el agente valide las cuotas antes de que comience el partido.")
         boleto_file = st.file_uploader("Sube tu boleto de apuesta:", type=["png", "jpg", "jpeg"], key="boleto_f2")
@@ -393,7 +401,6 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                         elif "ESTADO: Nula" in texto_analisis or "Nula" in texto_analisis:
                             estado_detectado = "Nula"
                             
-                        # Guardar automáticamente en historial
                         nuevo_registro = {
                             "partido": target_match,
                             "mercado": tipo_jugada_str,
@@ -408,11 +415,10 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                     except Exception as e:
                         st.error(f"Error al procesar la imagen de resultado: {str(e)}")
 
-        # Opción manual alternativa por si no se sube foto de resultado
         with st.expander("📝 Registrar resultado manualmente (Sin subir foto de resultado)"):
             with st.form("form_manual_f2"):
                 res_manual = st.selectbox("Resultado real:", ["Ganada", "Perdida", "Nula"], key="rm_f2")
-                sub_manual = st.form_submit_button("💾 Guardar Mancomunadamente / Manual")
+                sub_manual = st.form_submit_button("💾 Guardar Manualmente")
                 if sub_manual:
                     reg_man = {
                         "partido": target_match,
@@ -475,6 +481,13 @@ else:
         help="Monto simulado para calcular ganancias y riesgo"
     )
 
+    # NUEVO: Caja para instrucción u observación adicional opcional en modo directo
+    instruccion_extra_d = st.text_area(
+        "💡 Instrucción o nota adicional para el agente (Opcional):",
+        placeholder="Ej: Ten en cuenta que el equipo local tiene 3 bajas en defensa, o prioriza hándicaps asiáticos...",
+        key="extra_prompt_d"
+    )
+
     if st.button("🚀 Auditar Partido Directo (Web Search + SRI + Stake)", type="primary"):
         if not st.session_state.direct_images_list:
             st.warning("⚠️ Sube al menos una captura del partido o mercado.")
@@ -491,11 +504,14 @@ else:
                     else:
                         resumen_historial += "Aún no hay historial registrado.\n"
 
+                    nota_usuario_d = f"\nNOTA EXTRA DEL USUARIO: {instruccion_extra_d}\n" if instruccion_extra_d else ""
+
                     direct_prompt = f"""
                     Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con memoria analítica.
                     El usuario ha seleccionado auditar directamente un partido/mercado a través de la(s) imagen(es) adjunta(s). Referencia ingresada: "{partido_ref}".
                     
                     {resumen_historial}
+                    {nota_usuario_d}
                     
                     INSTRUCCIÓN DE APRENDIZAJE: Revisa el historial previo del usuario. Si detectas patrones de fallos, ajusta tus recomendaciones y advierte al usuario.
                     
