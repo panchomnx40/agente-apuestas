@@ -48,7 +48,7 @@ if app_password and not st.session_state.authenticated:
                 st.error("Contraseña incorrecta.")
     st.stop()
 
-# Inicializar estados en sesión para evitar pérdidas al cambiar de app en móviles
+# Inicializar estados en sesión
 if "images_list" not in st.session_state:
     st.session_state.images_list = []
 if "scan_result" not in st.session_state:
@@ -131,6 +131,7 @@ modo_operacion = st.radio(
 if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
     st.subheader("Fase 1: Radar de Oportunidades (Betano)")
 
+    # Usamos un formulario o manejador estable para que la imagen no parpadee al subir
     uploaded_files = st.file_uploader(
         "Sube tu captura con la cartelera de partidos:",
         type=["png", "jpg", "jpeg"],
@@ -139,23 +140,20 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
     )
 
     if uploaded_files:
+        st.session_state.images_list = [] # Limpiar para evitar duplicados al recargar
         for file in uploaded_files:
             img = Image.open(file)
-            if img not in st.session_state.images_list:
-                st.session_state.images_list.append(img)
+            st.session_state.images_list.append(img)
 
     if st.session_state.images_list:
         cols = st.columns(min(len(st.session_state.images_list), 4))
-        indices_to_remove = []
         for idx, img in enumerate(st.session_state.images_list):
             with cols[idx % 4]:
                 st.image(img, use_container_width=True)
-                if st.button(f"❌ Quitar #{idx+1}", key=f"del_f1_{idx}"):
-                    indices_to_remove.append(idx)
-        
-        if indices_to_remove:
-            for index in sorted(indices_to_remove, reverse=True):
-                st.session_state.images_list.pop(index)
+
+        if st.button("🗑️ Quitar Imágenes", key="clear_f1"):
+            st.session_state.images_list = []
+            st.session_state.scan_result = None
             st.rerun()
 
         if st.button("🎯 Escanear y Filtrar Mejores Oportunidades", type="primary"):
@@ -226,23 +224,19 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
         )
 
         if detail_files:
+            st.session_state.detail_images_list = []
             for file in detail_files:
                 img = Image.open(file)
-                if img not in st.session_state.detail_images_list:
-                    st.session_state.detail_images_list.append(img)
+                st.session_state.detail_images_list.append(img)
 
         if st.session_state.detail_images_list:
             d_cols = st.columns(min(len(st.session_state.detail_images_list), 4))
-            d_indices_to_remove = []
             for idx, img in enumerate(st.session_state.detail_images_list):
                 with d_cols[idx % 4]:
                     st.image(img, use_container_width=True)
-                    if st.button(f"❌ Quitar #{idx+1}", key=f"del_f2_{idx}"):
-                        d_indices_to_remove.append(idx)
-            
-            if d_indices_to_remove:
-                for index in sorted(d_indices_to_remove, reverse=True):
-                    st.session_state.detail_images_list.pop(index)
+
+            if st.button("❌ Quitar Capturas de Mercado", key="clear_f2"):
+                st.session_state.detail_images_list = []
                 st.rerun()
 
         monto_apuesta = st.number_input(
@@ -457,23 +451,19 @@ else:
     )
 
     if direct_files:
+        st.session_state.direct_images_list = []
         for file in direct_files:
             img = Image.open(file)
-            if img not in st.session_state.direct_images_list:
-                st.session_state.direct_images_list.append(img)
+            st.session_state.direct_images_list.append(img)
 
     if st.session_state.direct_images_list:
         d_cols = st.columns(min(len(st.session_state.direct_images_list), 4))
-        d_indices_to_remove = []
         for idx, img in enumerate(st.session_state.direct_images_list):
             with d_cols[idx % 4]:
                 st.image(img, use_container_width=True)
-                if st.button(f"❌ Quitar #{idx+1}", key=f"del_direct_{idx}"):
-                    d_indices_to_remove.append(idx)
-        
-        if d_indices_to_remove:
-            for index in sorted(d_indices_to_remove, reverse=True):
-                st.session_state.direct_images_list.pop(index)
+
+        if st.button("❌ Quitar Capturas Directas", key="clear_direct"):
+            st.session_state.direct_images_list = []
             st.rerun()
 
     monto_directo = st.number_input(
