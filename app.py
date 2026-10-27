@@ -68,7 +68,7 @@ if "historial" not in st.session_state:
 
 # Encabezado principal
 st.title("⚽ Value Radar: Escáner, Auditor y Ciclo de Aprendizaje")
-st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Selección modular de apuestas. **3)** Validación y Memoria de Aprendizaje.")
+st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación inteligente de boleto con análisis de riesgo. **3)** Memoria de Aprendizaje.")
 
 # ---------------------------------------------------------
 # BARRA LATERAL (Configuración e Historial Rápido)
@@ -131,7 +131,6 @@ modo_operacion = st.radio(
 if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
     st.subheader("Fase 1: Radar de Oportunidades (Betano)")
 
-    # Usamos un formulario o manejador estable para que la imagen no parpadee al subir
     uploaded_files = st.file_uploader(
         "Sube tu captura con la cartelera de partidos:",
         type=["png", "jpg", "jpeg"],
@@ -140,7 +139,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
     )
 
     if uploaded_files:
-        st.session_state.images_list = [] # Limpiar para evitar duplicados al recargar
+        st.session_state.images_list = []
         for file in uploaded_files:
             img = Image.open(file)
             st.session_state.images_list.append(img)
@@ -347,22 +346,30 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
 
         st.info(f"📌 **Estructura detectada para registro:** {tipo_jugada_str}")
 
-        st.markdown("#### 🎫 Validación de Boleto en Betano (Opcional)")
-        st.caption("Sube la captura de tu apuesta ya realizada en Betano para que el agente valide las cuotas antes de que comience el partido.")
+        st.markdown("#### 🎫 Validación de Boleto y Análisis de Riesgo en Betano")
+        st.caption("Sube la captura de tu boleto de apuesta ya realizado en Betano. El agente no solo validará el retorno, sino que auditará el riesgo final, las selecciones y te dará recomendaciones tácticas.")
         boleto_file = st.file_uploader("Sube tu boleto de apuesta:", type=["png", "jpg", "jpeg"], key="boleto_f2")
         
         if boleto_file:
             boleto_img = Image.open(boleto_file)
             st.image(boleto_img, caption="Boleto de Betano cargado", width=300)
-            if st.button("🔍 Validar Boleto con Agente", key="val_bol_btn_f2"):
-                with st.spinner("Validando boleto..."):
+            if st.button("🔍 Validar Boleto y Analizar Riesgo con Agente", key="val_bol_btn_f2"):
+                with st.spinner("Analizando cuotas, verificando selecciones y evaluando riesgos..."):
                     try:
                         client_val = genai.Client(api_key=api_key)
                         val_resp = client_val.models.generate_content(
                             model='gemini-3.8-flash',
-                            contents=["Analiza esta captura de boleto de apuestas de Betano y confirma si las cuotas y montos son correctos según la auditoría.", boleto_img]
+                            contents=[f"""
+                            Eres un analista experto en gestión de riesgo de apuestas deportivas.
+                            Analiza esta captura de boleto de Betano en relación con la jugada seleccionada ('{tipo_jugada_str}').
+                            
+                            Por favor evalúa y entrega:
+                            1. 🔍 **Verificación de Cuotas y Retorno:** Confirma si la cuota total y el retorno de inversión proyectado son coherentes.
+                            2. ⚠️ **Análisis de Riesgo Final:** Identifica si hay alguna selección peligrosa en el boleto (ej. líneas muy ajustadas, mercados de tarjetas o hándicaps complejos) que eleve el riesgo de fallo.
+                            3. 💡 **Recomendación Táctica / Cobertura:** Aconseja al usuario sobre si mantener la apuesta limpia, vigilar algún momento clave del partido o considerar cobertura en vivo si las estadísticas cambian.
+                            """, boleto_img]
                         )
-                        st.success("✔ Validación del Boleto:")
+                        st.success("✔ Auditoría y Análisis de Riesgo del Boleto:")
                         st.markdown(val_resp.text)
                     except Exception as e:
                         st.error(f"Error al validar el boleto: {str(e)}")
@@ -577,21 +584,30 @@ else:
 
         nombre_reg = direct_match_name if direct_match_name else "Partido Directo"
 
-        st.markdown("#### 🎫 Validación de Boleto en Betano (Opcional)")
+        st.markdown("#### 🎫 Validación de Boleto y Análisis de Riesgo en Betano")
+        st.caption("Sube la captura de tu boleto de apuesta ya realizado en Betano para que el agente evalúe el riesgo final y te dé recomendaciones tácticas.")
         boleto_file_d = st.file_uploader("Sube tu boleto de apuesta:", type=["png", "jpg", "jpeg"], key="boleto_d")
         
         if boleto_file_d:
             boleto_img_d = Image.open(boleto_file_d)
             st.image(boleto_img_d, caption="Boleto de Betano cargado", width=300)
-            if st.button("🔍 Validar Boleto con Agente", key="val_bol_btn_d"):
-                with st.spinner("Validando boleto..."):
+            if st.button("🔍 Validar Boleto y Analizar Riesgo con Agente", key="val_bol_btn_d"):
+                with st.spinner("Analizando cuotas, verificando selecciones y evaluando riesgos..."):
                     try:
                         client_val_d = genai.Client(api_key=api_key)
                         val_resp_d = client_val_d.models.generate_content(
                             model='gemini-3.8-flash',
-                            contents=["Analiza esta captura de boleto de apuestas de Betano y confirma si las cuotas y montos son correctos según la auditoría.", boleto_img_d]
+                            contents=[f"""
+                            Eres un analista experto en gestión de riesgo de apuestas deportivas.
+                            Analiza esta captura de boleto de Betano en relación con la jugada seleccionada ('{tipo_jugada_str_d}').
+                            
+                            Por favor evalúa y entrega:
+                            1. 🔍 **Verificación de Cuotas y Retorno:** Confirma si la cuota total y el retorno de inversión proyectado son coherentes.
+                            2. ⚠️ **Análisis de Riesgo Final:** Identifica si hay alguna selección peligrosa en el boleto (ej. líneas muy ajustadas, mercados de tarjetas o hándicaps complejos) que eleve el riesgo de fallo.
+                            3. 💡 **Recomendación Táctica / Cobertura:** Aconseja al usuario sobre si mantener la apuesta limpia, vigilar algún momento clave del partido o considerar cobertura en vivo si las estadísticas cambian.
+                            """, boleto_img_d]
                         )
-                        st.success("✔ Validación del Boleto:")
+                        st.success("✔ Auditoría y Análisis de Riesgo del Boleto:")
                         st.markdown(val_resp_d.text)
                     except Exception as e:
                         st.error(f"Error al validar el boleto: {str(e)}")
