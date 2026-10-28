@@ -67,11 +67,11 @@ if "historial" not in st.session_state:
     st.session_state.historial = cargar_historial()
 
 # Encabezado principal
-st.title("⚽ Value Radar: Escáner, Auditor y Ciclo de Aprendizaje")
-st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación inteligente de boleto con análisis de riesgo. **3)** Memoria de Aprendizaje.")
+st.title("⚽ Value Radar: Escáner, Auditor y Memoria de Aprendizaje")
+st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación de Boleto y Riesgo. **3)** Alimentación automática del Historial vía Captura de Betano.")
 
 # ---------------------------------------------------------
-# BARRA LATERAL (Configuración e Historial Rápido)
+# BARRA LATERAL (Configuración, Resumen y Sincronización de Historial)
 # ---------------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Configuración del Agente")
@@ -111,6 +111,58 @@ with st.sidebar:
     
     st.metric("Total Registradas", total_apuestas)
     st.metric("Efectividad (Winrate)", f"{winrate:.1f}%", f"🟢 {ganadas} G / 🔴 {perdidas} P")
+
+    st.markdown("---")
+    st.subheader("📥 Sincronizar Historial Global")
+    st.caption("Sube tu captura del historial de ganancias/pérdidas de Betano para que el agente extraiga y alimente la base de datos automáticamente.")
+    
+    historial_global_file = st.file_uploader("Captura de historial Betano:", type=["png", "jpg", "jpeg"], key="historial_global_upload")
+    
+    if historial_global_file:
+        hist_img = Image.open(historial_global_file)
+        st.image(hist_img, caption="Historial Betano cargado", use_container_width=True)
+        if st.button("🤖 Procesar e Integrar al Historial", key="btn_proc_hist"):
+            if not api_key:
+                st.error("Falta la clave API.")
+            else:
+                with st.spinner("Leyendo historial y actualizando base de datos..."):
+                    try:
+                        client_h = genai.Client(api_key=api_key)
+                        prompt_h = """
+                        Analiza esta captura de pantalla del historial de apuestas de Betano.
+                        Extrae cada apuesta mostrada con su respectivo partido/evento, el mercado o tipo de apuesta, 
+                        el resultado exacto ('Ganada', 'Perdida' o 'Nula') y el monto invertido o ganado.
+                        
+                        Debes devolver estrictamente una lista en formato JSON válido (un array de objetos) con esta estructura exacta para cada apuesta:
+                        [
+                          {"partido": "Nombre del partido", "mercado": "Tipo de mercado", "resultado": "Ganada", "monto": 10.0},
+                          {"partido": "Nombre del partido", "mercado": "Tipo de mercado", "resultado": "Perdida", "monto": 5.0}
+                        ]
+                        No agregues texto adicional fuera del formato JSON para que pueda procesarse automáticamente.
+                        """
+                        res_h = client_h.models.generate_content(
+                            model='gemini-3.8-flash',
+                            contents=[prompt_h, hist_img]
+                        )
+                        
+                        texto_json = res_h.text.strip()
+                        # Limpiar posibles bloques de código Markdown si los incluye
+                        if "```json" in texto_json:
+                            texto_json = texto_json.split("```json")[1].split("```")[0].strip()
+                        elif "```" in texto_json:
+                            texto_json = texto_json.split("```")[1].split("```")[0].strip()
+                            
+                        nuevos_registros = json.loads(texto_json)
+                        if isinstance(nuevos_registros, list):
+                            for reg in nuevos_registros:
+                                st.session_state.historial.append(reg)
+                            guardar_historial(st.session_state.historial)
+                            st.success(f"✅ ¡Se han integrado {len(nuevos_registros)} apuestas al historial con éxito!")
+                            st.rerun()
+                        else:
+                            st.error("El formato extraído no es una lista válida.")
+                    except Exception as e:
+                        st.error(f"No se pudo procesar la imagen del historial automáticamente: {str(e)}")
 
 # ---------------------------------------------------------
 # SELECTOR DE MODO DE OPERACIÓN
@@ -347,7 +399,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
         st.info(f"📌 **Estructura detectada para registro:** {tipo_jugada_str}")
 
         st.markdown("#### 🎫 Validación de Boleto y Análisis de Riesgo en Betano")
-        st.caption("Sube la captura de tu boleto de apuesta ya realizado en Betano. El agente no solo validará el retorno, sino que auditará el riesgo final, las selecciones y te dará recomendaciones tácticas.")
+        st.caption("Sube la captura de tu boleto de apuesta ya realizado en Betano para que el agente evalúe el riesgo final y te dé recomendaciones tácticas.")
         boleto_file = st.file_uploader("Sube tu boleto de apuesta:", type=["png", "jpg", "jpeg"], key="boleto_f2")
         
         if boleto_file:
@@ -361,7 +413,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                             model='gemini-3.8-flash',
                             contents=[f"""
                             Eres un analista experto en gestión de riesgo de apuestas deportivas.
-                            Analiza esta captura de boleto de Betano en relación con la jugada seleccionada ('{tipo_jugada_str}').
+                            Analiza esta captura de boleto de Betano en relaciónกับ la jugada seleccionada ('{tipo_jugada_str}').
                             
                             Por favor evalúa y entrega:
                             1. 🔍 **Verificación de Cuotas y Retorno:** Confirma si la cuota total y el retorno de inversión proyectado son coherentes.
@@ -376,7 +428,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
 
         st.markdown("---")
         st.subheader("🏁 Cierre Post-Partido (Lectura Automática de Resultado)")
-        st.caption("Cuando termine el partido, sube la captura de pantalla del resultado final. El agente leerá si ganaste o perdiste y registrará automáticamente la ganancia/pérdida en el historial.")
+        st.caption("Sube la captura de pantalla del resultado final. El agente leerá si ganaste o perdiste y registrará automáticamente la ganancia/pérdida en el historial.")
         
         resultado_file = st.file_uploader("Sube la captura del resultado final del partido:", type=["png", "jpg", "jpeg"], key="resultado_f2")
         monto_apostado_final = st.number_input("Monto invertido en esta jugada ($):", value=monto_apuesta, key="monto_inv_f2")
