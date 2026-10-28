@@ -4,6 +4,7 @@ from google.genai import types
 from PIL import Image
 import os
 import json
+import re
 
 # Configuración inicial de la página
 st.set_page_config(
@@ -68,7 +69,7 @@ if "historial" not in st.session_state:
 
 # Encabezado principal
 st.title("⚽ Value Radar: Escáner, Auditor y Memoria de Aprendizaje")
-st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación interactiva de boleto con re-chequeo de cambios. **3)** Historial global de Betano.")
+st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación interactiva de boleto. **3)** Historial global de Betano.")
 
 # ---------------------------------------------------------
 # BARRA LATERAL (Configuración, Resumen y Sincronización de Historial)
@@ -201,6 +202,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
         if st.button("🗑️ Quitar Imágenes", key="clear_f1"):
             st.session_state.images_list = []
             st.session_state.scan_result = None
+            st.session_state.detected_matches = []
             st.rerun()
 
         if st.button("🎯 Escanear y Filtrar Mejores Oportunidades", type="primary"):
@@ -215,7 +217,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                         Analiza detalladamente la(s) imagen(es) de la cartelera de partidos adjuntas.
                         INSTRUCCIÓN CRÍTICA:
                         1. FILTRA y SELECCIONA ÚNICAMENTE los encuentros que presenten cuotas atractivas o potencial de valor.
-                        2. Al final de tu respuesta, INCLUYE OBLIGATORIAMENTE un bloque etiquetado exactamente como `LISTA_PARTIDOS:` seguido de los nombres de los partidos filtrados separados por comas o saltos de línea.
+                        2. Al final de tu respuesta, INCLUYE OBLIGATORIAMENTE un bloque etiquetado exactamente como `LISTA_PARTIDOS:` seguido de los partidos separados por comas o saltos de línea, asegurando que cada partido tenga formato claro (Ejemplo: `LISTA_PARTIDOS: Liverpool FC vs Chelsea FC, Manchester City vs Brighton, AC Monza vs SSC Napoli`).
                         Estructura tu reporte visual así:
                         - 📌 **Resumen de Oportunidades Detectadas**
                         """
@@ -227,9 +229,15 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                         st.session_state.scan_result = response.text
                         
                         if "LISTA_PARTIDOS:" in response.text:
-                            raw_matches = response.text.split("LISTA_PARTIDOS:")[1].strip().split("\n")[0]
-                            matches = [m.strip(" *-•") for m in raw_matches.split(",") if m.strip()]
-                            st.session_state.detected_matches = matches
+                            raw_line = response.text.split("LISTA_PARTIDOS:")[1].strip().split("\n")[0]
+                            # Limpieza robusta separando por comas o detectando patrones 'vs'
+                            parts = [p.strip(" *-•") for p in raw_line.split(",") if p.strip()]
+                            if len(parts) <= 1:
+                                # Si no usó comas, intentamos separar por la palabra 'vs' repetida o saltos
+                                matches = [m.strip(" *-•") for m in raw_line.split("\n") if m.strip()]
+                            else:
+                                matches = parts
+                            st.session_state.detected_matches = matches if matches else ["Ingresar partido manualmente..."]
                         else:
                             st.session_state.detected_matches = ["Ingresar partido manualmente..."]
 
@@ -311,7 +319,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                             for h in st.session_state.historial[-10:]:
                                 resumen_historial += f"- Partido: {h['partido']} | Apuesta: {h['mercado']} | Resultado: {h['resultado']}\n"
                         else:
-                            resumen_historial += "Aún no hay historial registrado.\n"
+                            resumen_historial += "Aún no hay historial registrado. Esta es la primera auditoría.\n"
 
                         nota_usuario = f"\nNOTA EXTRA DEL USUARIO: {instruccion_extra}\n" if instruccion_extra else ""
 
@@ -397,7 +405,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                             Analiza esta captura de boleto de Betano en relación con la jugada seleccionada ('{tipo_jugada_str}').
                             Por favor evalúa detalladamente y entrega:
                             1. 🔍 **Verificación de Cuotas y Retorno:** Confirma si la cuota total y el retorno son coherentes.
-                            2. ⚠️ **Análisis de Riesgo y Sugerencia de Cambio:** Revisa si hay selecciones con alto riesgo. Si notas que falta o sobra algún mercado para asegurar rentabilidad, **recomienda un cambio analítico exacto** (ej. "Cambiar Menos de 4.5 por Menos de 3.5 goles para bajar volatilidad").
+                            2. ⚠️ **Análisis de Riesgo y Sugerencia de Cambio:** Revisa si hay selecciones con alto riesgo. Si notas que falta o sobra algún mercado para asegurar rentabilidad, **recomienda un cambio analítico exacto**.
                             3. 💡 **Veredicto de Validación:** Indica claramente si el boleto está LISTO PARA APOSTAR o si requiere un ajuste adicional.
                             """, boleto_img]
                         )
