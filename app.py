@@ -17,17 +17,23 @@ st.set_page_config(
 HISTORY_FILE = "historial_apuestas.json"
 
 def cargar_historial():
+    # Intentar cargar desde el archivo local si existe
     if os.path.exists(HISTORY_FILE):
         try:
             with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
         except:
-            return []
+            pass
     return []
 
 def guardar_historial(historial):
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(historial, f, ensure_ascii=False, indent=4)
+    try:
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(historial, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        st.error(f"Error al guardar el historial: {str(e)}")
 
 # ---------------------------------------------------------
 # CONTROL DE ACCESO (Persistente y optimizado para móviles)
@@ -49,7 +55,16 @@ if app_password and not st.session_state.authenticated:
                 st.error("Contraseña incorrecta.")
     st.stop()
 
-# Inicializar estados en sesión de manera robusta
+# Inicialización robusta del historial en st.session_state sincronizado con disco
+if "historial" not in st.session_state:
+    st.session_state.historial = cargar_historial()
+else:
+    # Asegurar sincronización bidireccional por si el archivo local se actualiza
+    disk_history = cargar_historial()
+    if len(disk_history) > len(st.session_state.historial):
+        st.session_state.historial = disk_history
+
+# Inicializar otros estados en sesión
 if "images_list" not in st.session_state:
     st.session_state.images_list = []
 if "scan_result" not in st.session_state:
@@ -64,15 +79,13 @@ if "direct_images_list" not in st.session_state:
     st.session_state.direct_images_list = []
 if "direct_audit_result" not in st.session_state:
     st.session_state.direct_audit_result = None
-if "historial" not in st.session_state:
-    st.session_state.historial = cargar_historial()
 
 # Encabezado principal
 st.title("⚽ Value Radar: Escáner, Auditor y Memoria de Aprendizaje")
-st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación interactiva de boleto. **3)** Historial global de Betano.")
+st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación interactiva de boleto. **3)** Historial global persistente.")
 
 # ---------------------------------------------------------
-# BARRA LATERAL (Configuración, Resumen y Sincronización de Historial)
+# BARRA LATERAL (Configuración, Resumen y Sincronización)
 # ---------------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Configuración del Agente")
@@ -217,7 +230,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                         Analiza detalladamente la(s) imagen(es) de la cartelera de partidos adjuntas.
                         INSTRUCCIÓN CRÍTICA:
                         1. FILTRA y SELECCIONA ÚNICAMENTE los encuentros que presenten cuotas atractivas o potencial de valor.
-                        2. Al final de tu respuesta, INCLUYE OBLIGATORIAMENTE un bloque etiquetado exactamente como `LISTA_PARTIDOS:` seguido de los partidos separados por comas o saltos de línea, asegurando que cada partido tenga formato claro (Ejemplo: `LISTA_PARTIDOS: Liverpool FC vs Chelsea FC, Manchester City vs Brighton, AC Monza vs SSC Napoli`).
+                        2. Al final de tu respuesta, INCLUYE OBLIGATORIAMENTE un bloque etiquetado exactamente como `LISTA_PARTIDOS:` seguido de los partidos separados por comas o saltos de línea (Ejemplo: `LISTA_PARTIDOS: Liverpool FC vs Chelsea FC, Manchester City vs Brighton, AC Monza vs SSC Napoli`).
                         Estructura tu reporte visual así:
                         - 📌 **Resumen de Oportunidades Detectadas**
                         """
@@ -230,10 +243,8 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                         
                         if "LISTA_PARTIDOS:" in response.text:
                             raw_line = response.text.split("LISTA_PARTIDOS:")[1].strip().split("\n")[0]
-                            # Limpieza robusta separando por comas o detectando patrones 'vs'
                             parts = [p.strip(" *-•") for p in raw_line.split(",") if p.strip()]
                             if len(parts) <= 1:
-                                # Si no usó comas, intentamos separar por la palabra 'vs' repetida o saltos
                                 matches = [m.strip(" *-•") for m in raw_line.split("\n") if m.strip()]
                             else:
                                 matches = parts
