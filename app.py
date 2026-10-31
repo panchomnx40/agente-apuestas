@@ -17,7 +17,6 @@ st.set_page_config(
 HISTORY_FILE = "historial_apuestas.json"
 
 def cargar_historial():
-    # Intentar cargar desde el archivo local si existe
     if os.path.exists(HISTORY_FILE):
         try:
             with open(HISTORY_FILE, "r", encoding="utf-8") as f:
@@ -55,11 +54,10 @@ if app_password and not st.session_state.authenticated:
                 st.error("Contraseña incorrecta.")
     st.stop()
 
-# Inicialización robusta del historial en st.session_state sincronizado con disco
+# Inicialización robusta del historial
 if "historial" not in st.session_state:
     st.session_state.historial = cargar_historial()
 else:
-    # Asegurar sincronización bidireccional por si el archivo local se actualiza
     disk_history = cargar_historial()
     if len(disk_history) > len(st.session_state.historial):
         st.session_state.historial = disk_history
@@ -82,10 +80,10 @@ if "direct_audit_result" not in st.session_state:
 
 # Encabezado principal
 st.title("⚽ Value Radar: Escáner, Auditor y Memoria de Aprendizaje")
-st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación interactiva de boleto. **3)** Historial global persistente.")
+st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación interactiva de boleto en Betano. **3)** Sincronización global de historial.")
 
 # ---------------------------------------------------------
-# BARRA LATERAL (Configuración, Resumen y Sincronización)
+# BARRA LATERAL (Configuración, Rendimiento y Sincronización)
 # ---------------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Configuración del Agente")
@@ -126,9 +124,22 @@ with st.sidebar:
     st.metric("Total Registradas", total_apuestas)
     st.metric("Efectividad (Winrate)", f"{winrate:.1f}%", f"🟢 {ganadas} G / 🔴 {perdidas} P")
 
+    # Respaldo y descarga del historial
+    st.markdown("---")
+    st.subheader("💾 Respaldo de Historial")
+    if st.session_state.historial:
+        json_historial = json.dumps(st.session_state.historial, ensure_ascii=False, indent=4)
+        st.download_button(
+            label="📥 Descargar Archivo JSON",
+            data=json_historial,
+            file_name="historial_apuestas.json",
+            mime="application/json",
+            help="Descarga una copia de seguridad directa del archivo de historial"
+        )
+
     st.markdown("---")
     st.subheader("📥 Sincronizar Historial Global")
-    st.caption("Sube tu captura del historial de ganancias/pérdidas de Betano para alimentar la base de datos.")
+    st.caption("Sube tu captura del historial de ganancias/pérdidas de Betano para actualizar automáticamente la base de datos.")
     
     historial_global_file = st.file_uploader("Captura de historial Betano:", type=["png", "jpg", "jpeg"], key="historial_global_upload")
     
@@ -373,31 +384,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
         st.markdown(st.session_state.audit_result)
 
         st.markdown("---")
-        st.subheader("☑️ Selección Modular de Apuesta (Directa y/o Combinada)")
-        
-        sel_directa = st.checkbox("✅ Registrar Opción Directa / Principal Aprobada", key="chk_dir_f2")
-        sel_alt_1 = st.checkbox("🔀 Combinada / Alternativa 1", key="chk_alt1_f2")
-        sel_alt_2 = st.checkbox("🔀 Combinada / Alternativa 2", key="chk_alt2_f2")
-        sel_alt_3 = st.checkbox("🔀 Combinada / Alternativa 3", key="chk_alt3_f2")
-        custom_mercado = st.text_input("Detalle o notas adicionales de tu selección:", placeholder="Ej: Doble Oportunidad + Más de 1.5 Goles", key="txt_custom_f2")
-
-        mercados_seleccionados = []
-        if sel_directa: mercados_seleccionados.append("Principal Aprobada")
-        if sel_alt_1: mercados_seleccionados.append("Alternativa 1")
-        if sel_alt_2: mercados_seleccionados.append("Alternativa 2")
-        if sel_alt_3: mercados_seleccionados.append("Alternativa 3")
-        if custom_mercado: mercados_seleccionados.append(custom_mercado)
-
-        if len(mercados_seleccionados) > 1:
-            tipo_jugada_str = "Combinada (Parley): " + " + ".join(mercados_seleccionados)
-        elif len(mercados_seleccionados) == 1:
-            tipo_jugada_str = f"Directa: {mercados_seleccionados[0]}"
-        else:
-            tipo_jugada_str = "Apuesta General"
-
-        st.info(f"📌 **Estructura detectada para registro:** {tipo_jugada_str}")
-
-        st.markdown("#### 🎫 Validación de Boleto y Re-chequeo de Cambios en Betano")
+        st.subheader("🎫 Validación de Boleto y Re-chequeo de Cambios en Betano")
         st.caption("Sube tu boleto. Si el agente te recomienda un cambio, ajústalo en Betano, sube la nueva captura aquí y vuelve a validar hasta que quede perfecto.")
         
         boleto_file = st.file_uploader("Sube captura del boleto de apuesta:", type=["png", "jpg", "jpeg"], key="boleto_f2")
@@ -413,7 +400,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                             model='gemini-3.8-flash',
                             contents=[f"""
                             Eres un analista experto en gestión de riesgo y optimización de apuestas deportivas.
-                            Analiza esta captura de boleto de Betano en relación con la jugada seleccionada ('{tipo_jugada_str}').
+                            Analiza esta captura de boleto de Betano en relación con el partido auditado ('{target_match}').
                             Por favor evalúa detalladamente y entrega:
                             1. 🔍 **Verificación de Cuotas y Retorno:** Confirma si la cuota total y el retorno son coherentes.
                             2. ⚠️ **Análisis de Riesgo y Sugerencia de Cambio:** Revisa si hay selecciones con alto riesgo. Si notas que falta o sobra algún mercado para asegurar rentabilidad, **recomienda un cambio analítico exacto**.
@@ -424,64 +411,6 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                         st.markdown(val_resp.text)
                     except Exception as e:
                         st.error(f"Error al validar el boleto: {str(e)}")
-
-        st.markdown("---")
-        st.subheader("🏁 Cierre Post-Partido (Lectura Automática de Resultado)")
-        resultado_file = st.file_uploader("Sube captura del resultado final del partido:", type=["png", "jpg", "jpeg"], key="resultado_f2")
-        monto_apostado_final = st.number_input("Monto invertido en esta jugada ($):", value=monto_apuesta, key="monto_inv_f2")
-        
-        if resultado_file:
-            res_img = Image.open(resultado_file)
-            st.image(res_img, caption="Captura de resultado final", width=300)
-            if st.button("🤖 Analizar Resultado y Registrar en Historial Automáticamente", key="auto_res_btn_f2"):
-                with st.spinner("Leyendo resultado final y actualizando historial..."):
-                    try:
-                        client_res = genai.Client(api_key=api_key)
-                        analisis_res = client_res.models.generate_content(
-                            model='gemini-3.8-flash',
-                            contents=[f"""
-                            Analiza esta imagen de resultado final del partido '{target_match}' donde se apostó '{tipo_jugada_str}'.
-                            Determina estrictamente si la apuesta fue 'Ganada', 'Perdida' o 'Nula'.
-                            Responde en el formato exacto:
-                            ESTADO: [Ganada / Perdida / Nula]
-                            MOTIVO: [Breve explicación]
-                            """, res_img]
-                        )
-                        texto_analisis = analisis_res.text
-                        estado_detectado = "Perdida"
-                        if "ESTADO: Ganada" in texto_analisis or "Ganada" in texto_analisis:
-                            estado_detectado = "Ganada"
-                        elif "ESTADO: Nula" in texto_analisis or "Nula" in texto_analisis:
-                            estado_detectado = "Nula"
-                            
-                        nuevo_registro = {
-                            "partido": target_match,
-                            "mercado": tipo_jugada_str,
-                            "resultado": estado_detectado,
-                            "monto": monto_apostado_final
-                        }
-                        st.session_state.historial.append(nuevo_registro)
-                        guardar_historial(st.session_state.historial)
-                        st.success(f"✅ ¡Resultado procesado con éxito! Detectado como: **{estado_detectado}**.")
-                        st.markdown(texto_analisis)
-                    except Exception as e:
-                        st.error(f"Error al procesar la imagen de resultado: {str(e)}")
-
-        with st.expander("📝 Registrar resultado manualmente (Sin subir foto de resultado)"):
-            with st.form("form_manual_f2"):
-                res_manual = st.selectbox("Resultado real:", ["Ganada", "Perdida", "Nula"], key="rm_f2")
-                sub_manual = st.form_submit_button("💾 Guardar Manualmente")
-                if sub_manual:
-                    reg_man = {
-                        "partido": target_match,
-                        "mercado": tipo_jugada_str,
-                        "resultado": res_manual,
-                        "monto": monto_apostado_final
-                    }
-                    st.session_state.historial.append(reg_man)
-                    guardar_historial(st.session_state.historial)
-                    st.success("✅ ¡Registrado manualmente con éxito!")
-                    st.rerun()
 
         if st.button("🔄 Descartar esta auditoría y probar otro partido del Radar", type="secondary"):
             st.session_state.audit_result = None
@@ -591,33 +520,7 @@ else:
         st.markdown(st.session_state.direct_audit_result)
 
         st.markdown("---")
-        st.subheader("☑️ Selección Modular de Apuesta (Directa y/o Combinada)")
-        
-        sel_directa_d = st.checkbox("✅ Registrar Opción Directa / Principal Aprobada", key="chk_dir_d")
-        sel_alt_1_d = st.checkbox("🔀 Combinada / Alternativa 1", key="chk_alt1_d")
-        sel_alt_2_d = st.checkbox("🔀 Combinada / Alternativa 2", key="chk_alt2_d")
-        sel_alt_3_d = st.checkbox("🔀 Combinada / Alternativa 3", key="chk_alt3_d")
-        custom_mercado_d = st.text_input("Detalle o notas adicionales de tu selección:", placeholder="Ej: Doble Oportunidad + Más de 1.5 Goles", key="txt_custom_d")
-
-        mercados_seleccionados_d = []
-        if sel_directa_d: mercados_seleccionados_d.append("Principal Aprobada")
-        if sel_alt_1_d: mercados_seleccionados_d.append("Alternativa 1")
-        if sel_alt_2_d: mercados_seleccionados_d.append("Alternativa 2")
-        if sel_alt_3_d: mercados_seleccionados_d.append("Alternativa 3")
-        if custom_mercado_d: mercados_seleccionados_d.append(custom_mercado_d)
-
-        if len(mercados_seleccionados_d) > 1:
-            tipo_jugada_str_d = "Combinada (Parley): " + " + ".join(mercados_seleccionados_d)
-        elif len(mercados_seleccionados_d) == 1:
-            tipo_jugada_str_d = f"Directa: {mercados_seleccionados_d[0]}"
-        else:
-            tipo_jugada_str_d = "Apuesta General"
-
-        st.info(f"📌 **Estructura detectada para registro:** {tipo_jugada_str_d}")
-
-        nombre_reg = direct_match_name if direct_match_name else "Partido Directo"
-
-        st.markdown("#### 🎫 Validación de Boleto y Re-chequeo de Cambios en Betano")
+        st.subheader("🎫 Validación de Boleto y Re-chequeo de Cambios en Betano")
         st.caption("Sube tu boleto. Si el agente te sugiere algún cambio, modifícalo en Betano, sube la nueva captura y vuelve a validar.")
         
         boleto_file_d = st.file_uploader("Sube captura del boleto de apuesta:", type=["png", "jpg", "jpeg"], key="boleto_d")
@@ -633,7 +536,7 @@ else:
                             model='gemini-3.8-flash',
                             contents=[f"""
                             Eres un analista experto en gestión de riesgo y optimización de apuestas deportivas.
-                            Analiza esta captura de boleto de Betano en relación con la jugada seleccionada ('{tipo_jugada_str_d}').
+                            Analiza esta captura de boleto de Betano en relación con el partido auditado ('{direct_match_name}').
                             Por favor evalúa detalladamente y entrega:
                             1. 🔍 **Verificación de Cuotas y Retorno:** Confirma si la cuota total y el retorno son coherentes.
                             2. ⚠️ **Análisis de Riesgo y Sugerencia de Cambio:** Revisa si hay selecciones con alto riesgo. Si notas que falta o sobra algún mercado para asegurar rentabilidad, **recomienda un cambio analítico exacto**.
@@ -644,64 +547,6 @@ else:
                         st.markdown(val_resp_d.text)
                     except Exception as e:
                         st.error(f"Error al validar el boleto: {str(e)}")
-
-        st.markdown("---")
-        st.subheader("🏁 Cierre Post-Partido (Lectura Automática de Resultado)")
-        resultado_file_d = st.file_uploader("Sube captura del resultado final del partido:", type=["png", "jpg", "jpeg"], key="resultado_d")
-        monto_apostado_final_d = st.number_input("Monto invertido en esta jugada ($):", value=monto_directo, key="monto_inv_d")
-        
-        if resultado_file_d:
-            res_img_d = Image.open(resultado_file_d)
-            st.image(res_img_d, caption="Captura de resultado final", width=300)
-            if st.button("🤖 Analizar Resultado y Registrar en Historial Automáticamente", key="auto_res_btn_d"):
-                with st.spinner("Leyendo resultado final y actualizando historial..."):
-                    try:
-                        client_res_d = genai.Client(api_key=api_key)
-                        analisis_res_d = client_res_d.models.generate_content(
-                            model='gemini-3.8-flash',
-                            contents=[f"""
-                            Analiza esta imagen de resultado final del partido '{nombre_reg}' donde se apostó '{tipo_jugada_str_d}'.
-                            Determina estrictamente si la apuesta fue 'Ganada', 'Perdida' o 'Nula'.
-                            Responde en el formato exacto:
-                            ESTADO: [Ganada / Perdida / Nula]
-                            MOTIVO: [Breve explicación]
-                            """, res_img_d]
-                        )
-                        texto_analisis_d = analisis_res_d.text
-                        estado_detectado_d = "Perdida"
-                        if "ESTADO: Ganada" in texto_analisis_d or "Ganada" in texto_analisis_d:
-                            estado_detectado_d = "Ganada"
-                        elif "ESTADO: Nula" in texto_analisis_d or "Nula" in texto_analisis_d:
-                            estado_detectado_d = "Nula"
-                            
-                        nuevo_registro_d = {
-                            "partido": nombre_reg,
-                            "mercado": tipo_jugada_str_d,
-                            "resultado": estado_detectado_d,
-                            "monto": monto_apostado_final_d
-                        }
-                        st.session_state.historial.append(nuevo_registro_d)
-                        guardar_historial(st.session_state.historial)
-                        st.success(f"✅ ¡Resultado procesado con éxito! Detectado como: **{estado_detectado_d}**.")
-                        st.markdown(texto_analisis_d)
-                    except Exception as e:
-                        st.error(f"Error al procesar la imagen de resultado: {str(e)}")
-
-        with st.expander("📝 Registrar resultado manualmente (Sin subir foto de resultado)"):
-            with st.form("form_manual_d"):
-                res_manual_d = st.selectbox("Resultado real:", ["Ganada", "Perdida", "Nula"], key="rm_d")
-                sub_manual_d = st.form_submit_button("💾 Guardar Manualmente")
-                if sub_manual_d:
-                    reg_man_d = {
-                        "partido": nombre_reg,
-                        "mercado": tipo_jugada_str_d,
-                        "resultado": res_manual_d,
-                        "monto": monto_apostado_final_d
-                    }
-                    st.session_state.historial.append(reg_man_d)
-                    guardar_historial(st.session_state.historial)
-                    st.success("✅ ¡Registrado manualmente con éxito!")
-                    st.rerun()
 
         if st.button("🔄 Descartar esta auditoría y probar otro partido", type="secondary"):
             st.session_state.direct_audit_result = None
