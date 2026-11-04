@@ -80,10 +80,10 @@ if "direct_audit_result" not in st.session_state:
 
 # Encabezado principal
 st.title("⚽ Value Radar: Escáner, Auditor y Memoria de Aprendizaje")
-st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación interactiva de boleto en Betano. **3)** Sincronización global de historial.")
+st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación interactiva de boleto. **3)** Sincronización y análisis de efectividad por tipo de apuesta.")
 
 # ---------------------------------------------------------
-# BARRA LATERAL (Configuración, Rendimiento y Sincronización)
+# BARRA LATERAL (Configuración, Rendimiento y Respaldo)
 # ---------------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Configuración del Agente")
@@ -124,7 +124,7 @@ with st.sidebar:
     st.metric("Total Registradas", total_apuestas)
     st.metric("Efectividad (Winrate)", f"{winrate:.1f}%", f"🟢 {ganadas} G / 🔴 {perdidas} P")
 
-    # Respaldo y descarga del historial
+    # Respaldo: Descargar y CARGAR archivo JSON
     st.markdown("---")
     st.subheader("💾 Respaldo de Historial")
     if st.session_state.historial:
@@ -137,9 +137,24 @@ with st.sidebar:
             help="Descarga una copia de seguridad directa del archivo de historial"
         )
 
+    # NUEVO: Subir / Cargar archivo JSON de respaldo existente
+    uploaded_backup = st.file_uploader("📂 Cargar archivo JSON previo", type=["json"], key="upload_backup_json")
+    if uploaded_backup:
+        try:
+            backup_data = json.load(uploaded_backup)
+            if isinstance(backup_data, list):
+                st.session_state.historial = backup_data
+                guardar_historial(st.session_state.historial)
+                st.success(f"✅ ¡Historial restaurado con éxito ({len(backup_data)} registros)!")
+                st.rerun()
+            else:
+                st.error("El archivo JSON no tiene el formato de lista esperado.")
+        except Exception as e:
+            st.error(f"Error al leer el archivo de respaldo: {str(e)}")
+
     st.markdown("---")
-    st.subheader("📥 Sincronizar Historial Global")
-    st.caption("Sube tu captura del historial de ganancias/pérdidas de Betano para actualizar automáticamente la base de datos.")
+    st.subheader("📥 Sincronizar Historial Global (Betano)")
+    st.caption("Sube tu captura del historial de Betano. El agente extraerá el tipo de apuesta (Simple/Combinada), el partido, mercado y resultado exacto.")
     
     historial_global_file = st.file_uploader("Captura de historial Betano:", type=["png", "jpg", "jpeg"], key="historial_global_upload")
     
@@ -150,16 +165,27 @@ with st.sidebar:
             if not api_key:
                 st.error("Falta la clave API.")
             else:
-                with st.spinner("Leyendo historial y actualizando base de datos..."):
+                with st.spinner("Leyendo historial y clasificando tipos de apuesta..."):
                     try:
                         client_h = genai.Client(api_key=api_key)
                         prompt_h = """
                         Analiza esta captura de pantalla del historial de apuestas de Betano.
-                        Extrae cada apuesta mostrada con su respectivo partido/evento, el mercado o tipo de apuesta, 
-                        el resultado exacto ('Ganada', 'Perdida' o 'Nula') y el monto invertido.
+                        Extrae cada apuesta mostrada detallando:
+                        - "partido": Nombre del evento o enfrentamiento.
+                        - "tipo_apuesta": Especifica claramente si fue 'Simple' o 'Combinada (Parley)'.
+                        - "mercado": Detalle específico de los mercados o selecciones realizadas (ej. BetBuilder con sus selecciones, Ganador del partido, etc.).
+                        - "resultado": Estado exacto ('Ganada', 'Perdida', 'Nula' o 'Cash Out').
+                        - "monto": Monto invertido (número flotante).
+                        
                         Devuelve estrictamente una lista en formato JSON válido (un array de objetos):
                         [
-                          {"partido": "Nombre del partido", "mercado": "Tipo de mercado", "resultado": "Ganada", "monto": 10.0}
+                          {
+                            "partido": "Equipo A - Equipo B", 
+                            "tipo_apuesta": "Combinada (Parley)", 
+                            "mercado": "Más de 2.5 Goles + 1X", 
+                            "resultado": "Ganada", 
+                            "monto": 10.0
+                          }
                         ]
                         No agregues texto adicional fuera del formato JSON.
                         """
@@ -176,9 +202,12 @@ with st.sidebar:
                         nuevos_registros = json.loads(texto_json)
                         if isinstance(nuevos_registros, list):
                             for reg in nuevos_registros:
+                                # Normalizar claves por compatibilidad con registros antiguos
+                                if "tipo_apuesta" not in reg:
+                                    reg["tipo_apuesta"] = "Simple"
                                 st.session_state.historial.append(reg)
                             guardar_historial(st.session_state.historial)
-                            st.success(f"✅ ¡Se han integrado {len(nuevos_registros)} apuestas al historial!")
+                            st.success(f"✅ ¡Se han integrado {len(nuevos_registros)} apuestas detalladas al historial!")
                             st.rerun()
                         else:
                             st.error("El formato extraído no es una lista válida.")
@@ -241,7 +270,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                         Analiza detalladamente la(s) imagen(es) de la cartelera de partidos adjuntas.
                         INSTRUCCIÓN CRÍTICA:
                         1. FILTRA y SELECCIONA ÚNICAMENTE los encuentros que presenten cuotas atractivas o potencial de valor.
-                        2. Al final de tu respuesta, INCLUYE OBLIGATORIAMENTE un bloque etiquetado exactamente como `LISTA_PARTIDOS:` seguido de los partidos separados por comas o saltos de línea (Ejemplo: `LISTA_PARTIDOS: Liverpool FC vs Chelsea FC, Manchester City vs Brighton, AC Monza vs SSC Napoli`).
+                        2. Al final de tu respuesta, INCLUYE OBLIGATORIAMENTE un bloque etiquetado exactamente como `LISTA_PARTIDOS:` seguido de los partidos separados por comas o saltos de línea.
                         Estructura tu reporte visual así:
                         - 📌 **Resumen de Oportunidades Detectadas**
                         """
@@ -336,17 +365,18 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                 with st.spinner(f"Analizando '{target_match}' cruzando datos con tu historial de aciertos y la web..."):
                     try:
                         client = genai.Client(api_key=api_key)
-                        resumen_historial = "Historial reciente del apostador:\n"
+                        resumen_historial = "Historial y Efectividad por Tipo de Apuesta:\n"
                         if st.session_state.historial:
-                            for h in st.session_state.historial[-10:]:
-                                resumen_historial += f"- Partido: {h['partido']} | Apuesta: {h['mercado']} | Resultado: {h['resultado']}\n"
+                            for h in st.session_state.historial[-15:]:
+                                t_ap = h.get("tipo_apuesta", "Simple")
+                                resumen_historial += f"- [{t_ap}] Partido: {h['partido']} | Mercado: {h['mercado']} | Resultado: {h['resultado']}\n"
                         else:
-                            resumen_historial += "Aún no hay historial registrado. Esta es la primera auditoría.\n"
+                            resumen_historial += "Aún no hay historial registrado.\n"
 
                         nota_usuario = f"\nNOTA EXTRA DEL USUARIO: {instruccion_extra}\n" if instruccion_extra else ""
 
                         audit_prompt = f"""
-                        Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con memoria analítica.
+                        Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con memoria analítica y segmentación por tipo de apuesta.
                         El usuario va a auditar el siguiente partido: "{target_match}".
                         {resumen_historial}
                         {nota_usuario}
@@ -356,10 +386,10 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                         - Monto planificado para apostar: ${monto_apuesta:.2f} USD.
                         INSTRUCCIONES DE FORMATO Y CONTENIDO:
                         1. UTILIZA OBLIGATORIAMENTE Google Search para buscar noticias recientes, bajas y lesiones de este evento.
-                        2. Analiza las capturas de mercados evaluando combinadas o alternativas y toma muy en cuenta la nota extra del usuario.
+                        2. Analiza el historial previo evaluando qué tipo de apuestas (Simples vs. Combinadas/BetBuilder) te dan mayor rentabilidad y adapta tus recomendaciones.
                         3. Genera el informe estructurado:
                            - 📌 **EVENTO Y MERCADOS EVALUADOS**
-                           - 🧠 **ANÁLISIS DE APRENDIZAJE BASADO EN TU HISTORIAL**
+                           - 🧠 **ANÁLISIS DE APRENDIZAJE E HISTORIAL (EFECTIVIDAD POR TIPO DE APUESTA)**
                            - 🌐 **INVESTIGACIÓN Y NOTICIAS DE LA WEB (ÚLTIMO MINUTO)**
                            - 💰 **CÁLCULO FINANCIERO Y GANANCIA NETA (POST-SRI {retencion}%)**
                            - 💡 **VEREDICTO FINAL Y RECOMENDACIÓN DE STAKE (GESTIÓN DE RIESGO)**
@@ -385,7 +415,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
 
         st.markdown("---")
         st.subheader("🎫 Validación de Boleto y Re-chequeo de Cambios en Betano")
-        st.caption("Sube tu boleto. Si el agente te recomienda un cambio, ajústalo en Betano, sube la nueva captura aquí y vuelve a validar hasta que quede perfecto.")
+        st.caption("Sube tu boleto. Si el agente te recomienda un cambio, ajústalo en Betano, sube la nueva captura aquí y vuelve a validar.")
         
         boleto_file = st.file_uploader("Sube captura del boleto de apuesta:", type=["png", "jpg", "jpeg"], key="boleto_f2")
         
@@ -403,8 +433,8 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                             Analiza esta captura de boleto de Betano en relación con el partido auditado ('{target_match}').
                             Por favor evalúa detalladamente y entrega:
                             1. 🔍 **Verificación de Cuotas y Retorno:** Confirma si la cuota total y el retorno son coherentes.
-                            2. ⚠️ **Análisis de Riesgo y Sugerencia de Cambio:** Revisa si hay selecciones con alto riesgo. Si notas que falta o sobra algún mercado para asegurar rentabilidad, **recomienda un cambio analítico exacto**.
-                            3. 💡 **Veredicto de Validación:** Indica claramente si el boleto está LISTO PARA APOSTAR o si requiere un ajuste adicional.
+                            2. ⚠️ **Análisis de Riesgo y Sugerencia de Cambio:** Revisa si hay selecciones con alto riesgo y recomienda ajustes analíticos exactos.
+                            3. 💡 **Veredicto de Validación:** Indica claramente si el boleto está LISTO PARA APOSTAR o si requiere un ajuste.
                             """, boleto_img]
                         )
                         st.success("✔ Auditoría Analítica del Boleto:")
@@ -472,17 +502,18 @@ else:
             with st.spinner(f"Analizando partido, buscando en la web y evaluando Stake óptimo..."):
                 try:
                     client = genai.Client(api_key=api_key)
-                    resumen_historial = "Historial reciente del apostador:\n"
+                    resumen_historial = "Historial y Efectividad por Tipo de Apuesta:\n"
                     if st.session_state.historial:
-                        for h in st.session_state.historial[-10:]:
-                            resumen_historial += f"- Partido: {h['partido']} | Apuesta: {h['mercado']} | Resultado: {h['resultado']}\n"
+                        for h in st.session_state.historial[-15:]:
+                            t_ap = h.get("tipo_apuesta", "Simple")
+                            resumen_historial += f"- [{t_ap}] Partido: {h['partido']} | Mercado: {h['mercado']} | Resultado: {h['resultado']}\n"
                     else:
                         resumen_historial += "Aún no hay historial registrado.\n"
 
                     nota_usuario_d = f"\nNOTA EXTRA DEL USUARIO: {instruccion_extra_d}\n" if instruccion_extra_d else ""
 
                     direct_prompt = f"""
-                    Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con memoria analítica.
+                    Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con memoria analítica y segmentación por tipo de apuesta.
                     El usuario va a auditar directamente un partido/mercado. Referencia: "{partido_ref}".
                     {resumen_historial}
                     {nota_usuario_d}
@@ -493,9 +524,9 @@ else:
                     INSTRUCCIONES DE FORMATO Y CONTENIDO:
                     1. Identifica claramente los equipos y el mercado en la(s) imagen(es).
                     2. UTILIZA OBLIGATORIAMENTE Google Search para buscar noticias recientes, bajas y lesiones de este evento.
-                    3. Genera el informe estructurado:
+                    3. Analiza la efectividad previa según el tipo de apuesta (Simple vs Combinada) y genera el informe estructurado:
                        - 📌 **EVENTO Y MERCADOS IDENTIFICADOS**
-                       - 🧠 **ANÁLISIS DE APRENDIZAJE BASADO EN TU HISTORIAL**
+                       - 🧠 **ANÁLISIS DE APRENDIZAJE E HISTORIAL (EFECTIVIDAD POR TIPO DE APUESTA)**
                        - 🌐 **INVESTIGACIÓN Y NOTICIAS DE LA WEB (ÚLTIMO MINUTO)**
                        - 💰 **CÁLCULO FINANCIERO Y GANANCIA NETA (POST-SRI {retencion}%)**
                        - 💡 **VEREDICTO FINAL Y RECOMENDACIÓN DE STAKE (GESTIÓN DE RIESGO)**
@@ -539,7 +570,7 @@ else:
                             Analiza esta captura de boleto de Betano en relación con el partido auditado ('{direct_match_name}').
                             Por favor evalúa detalladamente y entrega:
                             1. 🔍 **Verificación de Cuotas y Retorno:** Confirma si la cuota total y el retorno son coherentes.
-                            2. ⚠️ **Análisis de Riesgo y Sugerencia de Cambio:** Revisa si hay selecciones con alto riesgo. Si notas que falta o sobra algún mercado para asegurar rentabilidad, **recomienda un cambio analítico exacto**.
+                            2. ⚠️ **Análisis de Riesgo y Sugerencia de Cambio:** Revisa si hay selecciones con alto riesgo y recomienda un cambio analítico exacto.
                             3. 💡 **Veredicto de Validación:** Indica claramente si el boleto está LISTO PARA APOSTAR o si requiere un ajuste adicional.
                             """, boleto_img_d]
                         )
