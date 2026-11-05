@@ -5,6 +5,7 @@ from PIL import Image
 import os
 import json
 import re
+from collections import Counter
 
 # Configuración inicial de la página
 st.set_page_config(
@@ -35,7 +36,7 @@ def guardar_historial(historial):
         st.error(f"Error al guardar el historial: {str(e)}")
 
 # ---------------------------------------------------------
-# CONTROL DE ACCESO (Persistente y optimizado para móviles)
+# CONTROL DE ACCESO
 # ---------------------------------------------------------
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -62,7 +63,7 @@ else:
     if len(disk_history) > len(st.session_state.historial):
         st.session_state.historial = disk_history
 
-# Inicializar otros estados en sesión
+# Inicializar estados de sesión
 if "images_list" not in st.session_state:
     st.session_state.images_list = []
 if "scan_result" not in st.session_state:
@@ -80,7 +81,7 @@ if "direct_audit_result" not in st.session_state:
 
 # Encabezado principal
 st.title("⚽ Value Radar: Escáner, Auditor y Memoria de Aprendizaje")
-st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación interactiva de boleto. **3)** Sincronización y análisis de efectividad por tipo de apuesta.")
+st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación interactiva de boleto. **3)** Análisis de efectividad y categorías de fallo.")
 
 # ---------------------------------------------------------
 # BARRA LATERAL (Configuración, Rendimiento y Respaldo)
@@ -124,6 +125,17 @@ with st.sidebar:
     st.metric("Total Registradas", total_apuestas)
     st.metric("Efectividad (Winrate)", f"{winrate:.1f}%", f"🟢 {ganadas} G / 🔴 {perdidas} P")
 
+    # Análisis rápido de categorías con más pérdidas
+    if perdidas > 0:
+        categorias_perdidas = []
+        for h in st.session_state.historial:
+            if h["resultado"] == "Perdida":
+                cat = h.get("categoria", "General / Otro")
+                categorias_perdidas.append(cat)
+        if categorias_perdidas:
+            mas_comun = Counter(categorias_perdidas).most_common(1)[0]
+            st.warning(- f"⚠️ **Mayor foco de fallo:** `{mas_comun[0]}` ({mas_comun[1]} derrotas)")
+
     # Respaldo: Descargar y CARGAR archivo JSON
     st.markdown("---")
     st.subheader("💾 Respaldo de Historial")
@@ -137,7 +149,6 @@ with st.sidebar:
             help="Descarga una copia de seguridad directa del archivo de historial"
         )
 
-    # NUEVO: Subir / Cargar archivo JSON de respaldo existente
     uploaded_backup = st.file_uploader("📂 Cargar archivo JSON previo", type=["json"], key="upload_backup_json")
     if uploaded_backup:
         try:
@@ -154,7 +165,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("📥 Sincronizar Historial Global (Betano)")
-    st.caption("Sube tu captura del historial de Betano. El agente extraerá el tipo de apuesta (Simple/Combinada), el partido, mercado y resultado exacto.")
+    st.caption("Sube tu captura del historial de Betano. El agente extraerá el tipo, mercado desglosado, categoría principal de fallo y resultado.")
     
     historial_global_file = st.file_uploader("Captura de historial Betano:", type=["png", "jpg", "jpeg"], key="historial_global_upload")
     
@@ -165,15 +176,16 @@ with st.sidebar:
             if not api_key:
                 st.error("Falta la clave API.")
             else:
-                with st.spinner("Leyendo historial y clasificando tipos de apuesta..."):
+                with st.spinner("Leyendo historial y categorizando componentes..."):
                     try:
                         client_h = genai.Client(api_key=api_key)
                         prompt_h = """
                         Analiza esta captura de pantalla del historial de apuestas de Betano.
-                        Extrae cada apuesta mostrada detallando:
+                        Extrae cada apuesta mostrada detallando estrictamente:
                         - "partido": Nombre del evento o enfrentamiento.
-                        - "tipo_apuesta": Especifica claramente si fue 'Simple' o 'Combinada (Parley)'.
-                        - "mercado": Detalle específico de los mercados o selecciones realizadas (ej. BetBuilder con sus selecciones, Ganador del partido, etc.).
+                        - "tipo_apuesta": Especifica si fue 'Simple' o 'Combinada (Parley)'.
+                        - "mercado": Detalle completo de los mercados o selecciones realizadas.
+                        - "categoria": La categoría principal que define el tipo de apuesta (Elige una de estas: 'Córners', 'Goles / Over-Under', 'Resultado del Partido / 1X2', 'Doble Oportunidad', 'BetBuilder Mixto', o 'Tarjetas/Otros'). Si es una combinada mixta, pon 'BetBuilder Mixto'.
                         - "resultado": Estado exacto ('Ganada', 'Perdida', 'Nula' o 'Cash Out').
                         - "monto": Monto invertido (número flotante).
                         
@@ -181,9 +193,10 @@ with st.sidebar:
                         [
                           {
                             "partido": "Equipo A - Equipo B", 
-                            "tipo_apuesta": "Combinada (Parley)", 
-                            "mercado": "Más de 2.5 Goles + 1X", 
-                            "resultado": "Ganada", 
+                            "tipo_apuesta": "Simple", 
+                            "mercado": "BetBuilder: Más de 2.5 Goles + Más de 7.5 Córners", 
+                            "categoria": "BetBuilder Mixto",
+                            "resultado": "Perdida", 
                             "monto": 10.0
                           }
                         ]
@@ -202,9 +215,10 @@ with st.sidebar:
                         nuevos_registros = json.loads(texto_json)
                         if isinstance(nuevos_registros, list):
                             for reg in nuevos_registros:
-                                # Normalizar claves por compatibilidad con registros antiguos
                                 if "tipo_apuesta" not in reg:
                                     reg["tipo_apuesta"] = "Simple"
+                                if "categoria" not in reg:
+                                    reg["categoria"] = "General / Otro"
                                 st.session_state.historial.append(reg)
                             guardar_historial(st.session_state.historial)
                             st.success(f"✅ ¡Se han integrado {len(nuevos_registros)} apuestas detalladas al historial!")
@@ -228,7 +242,7 @@ modo_operacion = st.radio(
 )
 
 # ---------------------------------------------------------
-# MODO 1: RADAR DE JORNADA (ESCANEO Y SELECCIÓN)
+# MODO 1: RADAR DE JORNADA
 # ---------------------------------------------------------
 if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
     st.subheader("Fase 1: Radar de Oportunidades (Betano)")
@@ -365,18 +379,19 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                 with st.spinner(f"Analizando '{target_match}' cruzando datos con tu historial de aciertos y la web..."):
                     try:
                         client = genai.Client(api_key=api_key)
-                        resumen_historial = "Historial y Efectividad por Tipo de Apuesta:\n"
+                        resumen_historial = "Historial y Patrones de Errores por Categoría:\n"
                         if st.session_state.historial:
                             for h in st.session_state.historial[-15:]:
                                 t_ap = h.get("tipo_apuesta", "Simple")
-                                resumen_historial += f"- [{t_ap}] Partido: {h['partido']} | Mercado: {h['mercado']} | Resultado: {h['resultado']}\n"
+                                cat = h.get("categoria", "General")
+                                resumen_historial += f"- [{t_ap} | Cat: {cat}] Partido: {h['partido']} | Mercado: {h['mercado']} | Resultado: {h['resultado']}\n"
                         else:
                             resumen_historial += "Aún no hay historial registrado.\n"
 
                         nota_usuario = f"\nNOTA EXTRA DEL USUARIO: {instruccion_extra}\n" if instruccion_extra else ""
 
                         audit_prompt = f"""
-                        Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con memoria analítica y segmentación por tipo de apuesta.
+                        Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con memoria analítica y segmentación de errores por categorías.
                         El usuario va a auditar el siguiente partido: "{target_match}".
                         {resumen_historial}
                         {nota_usuario}
@@ -386,10 +401,10 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                         - Monto planificado para apostar: ${monto_apuesta:.2f} USD.
                         INSTRUCCIONES DE FORMATO Y CONTENIDO:
                         1. UTILIZA OBLIGATORIAMENTE Google Search para buscar noticias recientes, bajas y lesiones de este evento.
-                        2. Analiza el historial previo evaluando qué tipo de apuestas (Simples vs. Combinadas/BetBuilder) te dan mayor rentabilidad y adapta tus recomendaciones.
+                        2. Analiza el historial identificando qué tipos de mercados o categorías suelen fallar más (ej. córners, líneas de goles, BetBuilders) para advertir al usuario en qué debe tener cuidado.
                         3. Genera el informe estructurado:
                            - 📌 **EVENTO Y MERCADOS EVALUADOS**
-                           - 🧠 **ANÁLISIS DE APRENDIZAJE E HISTORIAL (EFECTIVIDAD POR TIPO DE APUESTA)**
+                           - 🧠 **ANÁLISIS DE APRENDIZAJE Y PATRONES DE ERROR HISTÓRICO**
                            - 🌐 **INVESTIGACIÓN Y NOTICIAS DE LA WEB (ÚLTIMO MINUTO)**
                            - 💰 **CÁLCULO FINANCIERO Y GANANCIA NETA (POST-SRI {retencion}%)**
                            - 💡 **VEREDICTO FINAL Y RECOMENDACIÓN DE STAKE (GESTIÓN DE RIESGO)**
@@ -502,18 +517,19 @@ else:
             with st.spinner(f"Analizando partido, buscando en la web y evaluando Stake óptimo..."):
                 try:
                     client = genai.Client(api_key=api_key)
-                    resumen_historial = "Historial y Efectividad por Tipo de Apuesta:\n"
+                    resumen_historial = "Historial y Patrones de Errores por Categoría:\n"
                     if st.session_state.historial:
                         for h in st.session_state.historial[-15:]:
                             t_ap = h.get("tipo_apuesta", "Simple")
-                            resumen_historial += f"- [{t_ap}] Partido: {h['partido']} | Mercado: {h['mercado']} | Resultado: {h['resultado']}\n"
+                            cat = h.get("categoria", "General")
+                            resumen_historial += f"- [{t_ap} | Cat: {cat}] Partido: {h['partido']} | Mercado: {h['mercado']} | Resultado: {h['resultado']}\n"
                     else:
                         resumen_historial += "Aún no hay historial registrado.\n"
 
                     nota_usuario_d = f"\nNOTA EXTRA DEL USUARIO: {instruccion_extra_d}\n" if instruccion_extra_d else ""
 
                     direct_prompt = f"""
-                    Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con memoria analítica y segmentación por tipo de apuesta.
+                    Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con memoria analítica y segmentación por categoría de error.
                     El usuario va a auditar directamente un partido/mercado. Referencia: "{partido_ref}".
                     {resumen_historial}
                     {nota_usuario_d}
@@ -524,9 +540,9 @@ else:
                     INSTRUCCIONES DE FORMATO Y CONTENIDO:
                     1. Identifica claramente los equipos y el mercado en la(s) imagen(es).
                     2. UTILIZA OBLIGATORIAMENTE Google Search para buscar noticias recientes, bajas y lesiones de este evento.
-                    3. Analiza la efectividad previa según el tipo de apuesta (Simple vs Combinada) y genera el informe estructurado:
+                    3. Analiza las categorías previas de fallo para advertir al usuario y genera el informe estructurado:
                        - 📌 **EVENTO Y MERCADOS IDENTIFICADOS**
-                       - 🧠 **ANÁLISIS DE APRENDIZAJE E HISTORIAL (EFECTIVIDAD POR TIPO DE APUESTA)**
+                       - 🧠 **ANÁLISIS DE APRENDIZAJE Y PATRONES DE ERROR HISTÓRICO**
                        - 🌐 **INVESTIGACIÓN Y NOTICIAS DE LA WEB (ÚLTIMO MINUTO)**
                        - 💰 **CÁLCULO FINANCIERO Y GANANCIA NETA (POST-SRI {retencion}%)**
                        - 💡 **VEREDICTO FINAL Y RECOMENDACIÓN DE STAKE (GESTIÓN DE RIESGO)**
