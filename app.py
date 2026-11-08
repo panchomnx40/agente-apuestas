@@ -97,7 +97,7 @@ def calcular_metricas_avanzadas(historial):
     
     resumen_txt = f"""
     📊 RESUMEN CUANTITATIVO (PYTHON):
-    - Inversión Total: ${total_inversion:.2f} USD \vert{} Ganancia Neta:${ganancia_neta_total:.2f} USD
+    - Inversión Total: ${total_inversion:.2f} USD | Ganancia Neta: ${ganancia_neta_total:.2f} USD
     - ROI: {roi:.2f}% | Racha: {'🟢 ' + str(racha_actual) + ' G' if racha_actual > 0 else '🔴 ' + str(abs(racha_actual)) + ' P'}
     """
     for cat, d in cat_stats.items():
@@ -150,7 +150,7 @@ for key in ["images_list", "scan_result", "detected_matches", "detail_images_lis
 
 # Encabezado principal
 st.title("⚽ Value Radar: Panel de Decisión Rápida")
-st.markdown("Sistema inteligente: **1)** Radar de Oportunidades. **2)** Auditoría Clara y Sin Rodeos. **3)** Control Financiero.")
+st.markdown("Sistema inteligente: **1)** Radar con Probabilidades +EV. **2)** Auditoría Clara y Directa. **3)** Control Financiero.")
 
 # ---------------------------------------------------------
 # BARRA LATERAL
@@ -265,12 +265,12 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera":
 
         if st.button("🎯 Escanear Oportunidades +EV", type="primary"):
             if api_key:
-                with st.spinner("Escaneando el mercado..."):
+                with st.spinner("Escaneando el mercado y calculando probabilidades..."):
                     try:
                         client = genai.Client(api_key=api_key)
                         scan_prompt = """
                         Analiza la cartelera de partidos y detecta 5 o 6 mejores oportunidades con valor (+EV).
-                        Usa estrictamente este formato limpio, visual y directo para cada oportunidad (sin lenguaje técnico enredado):
+                        Usa estrictamente este formato limpio, visual y directo para cada oportunidad:
 
                         ### 1. [Nombre del Partido]
                         - ⚽ **Mercado Recomendado:** ...
@@ -296,7 +296,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera":
 
     if st.session_state.scan_result:
         st.markdown("---")
-        st.subheader("🎯 Panel de Oportunidades Detectadas")
+        st.subheader("🎯 Panel de Oportunidades Detectadas (+EV)")
         st.markdown(st.session_state.scan_result)
 
         st.markdown("---")
@@ -324,7 +324,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera":
                         {resumen_mat}
                         - Impuesto SRI: {retencion}% | Monto: ${monto_apuesta:.2f}
                         
-                        Usa estrictamente este formato de Panel de Decisión Rápida (sin lenguaje técnico complejo):
+                        Usa estrictamente este formato de Panel de Decisión Rápida (sin rodeos ni tecnicismos complejos):
 
                         ### 🚦 Veredicto: [🟢 APTO / 🟡 RIESGOSO / 🔴 EVITAR]
                         - **Partido:** {target_match}
@@ -336,7 +336,8 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera":
                         - **Historial del usuario:** [Advertencia basada en sus categorías previas]
 
                         ### 💰 Cuentas Claras (Post-SRI {retencion}%)
-                        - **Inversión:** ${monto_apuesta:.2f} - **Ganancia Neta Estimada:**$[...]
+                        - **Inversión:** ${monto_apuesta:.2f}
+                        - **Ganancia Neta Estimada:** $[...]
                         - **Stake Recomendado:** [Ej: Bajo / Moderado / Alto]
 
                         ### 🔀 Alternativa más segura
@@ -349,39 +350,172 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera":
                         )
                         st.session_state.audit_result = res.text
                     except Exception as e:
-                        st.error(f"Error: {str¡Totalmente de acuerdo! Cuando estás frente a la pantalla evaluando una cartelera o a punto de confirmar un boleto en Betano, lo que menos necesitas es leer párrafos largos o explicaciones llenas de jerga técnica que te hagan dudar. 
+                        st.error(f"Error: {str(e)}")
 
-Para solucionar la variabilidad en los reportes y hacerlos ultra-rápidos de digerir, la mejor estrategia es implementar una **"Plantilla Maestra de Decisión"**. Esto obligará al agente a usar siempre el mismo formato estructurado, priorizando un sistema de **semáforo visual** y datos directos al grano.
+    if st.session_state.audit_result:
+        st.markdown("---")
+        st.subheader("📊 Informe de Auditoría Quirúrgica")
+        st.markdown(st.session_state.audit_result)
 
----
+        st.markdown("---")
+        st.subheader("🎫 Validación Anti-Margen de Boleto en Betano")
+        st.caption("Sube tu boleto final de Betano para verificar el número de selecciones y margen.")
+        
+        boleto_file = st.file_uploader("Sube captura del boleto de apuesta:", type=["png", "jpg", "jpeg"], key="boleto_f2")
+        
+        if boleto_file:
+            boleto_img_d = Image.open(boleto_file)
+            st.image(boleto_img_d, caption="Boleto de Betano cargado", width=300)
+            if st.button("🔍 Validar Boleto y Evaluar Margen con Agente", key="val_bol_btn_f2"):
+                with st.spinner("Analizando cuotas, correlación y margen de la casa..."):
+                    try:
+                        client_val = genai.Client(api_key=api_key)
+                        val_resp = client_val.models.generate_content(
+                            model='gemini-3.8-flash',
+                            contents=[f"""
+                            Eres un analista experto en gestión de riesgo y optimización de apuestas deportivas.
+                            Analiza esta captura de boleto de Betano en relación con el partido auditado ('{target_match}').
+                            Por favor entrega tu respuesta estrictamente usando este formato de Panel de Decisión Rápida:
 
-### 📋 El Formato Óptimo Recomendado (Estructura Estándar)
+                            ### 🚦 Veredicto de Boleto: [🟢 LISTO PARA APOSTAR / 🟡 REQUIERE RECORTE / 🔴 DESCARTAR]
+                            - **Cuota Total y Retorno:** [...]
+                            - **Análisis de Margen / Exceso de Patas:** [Comentario directo]
+                            - **Acción sugerida:** [Qué ajustar exactamente en Betano si aplica]
+                            """, boleto_img_d]
+                        )
+                        st.success("✔ Auditoría Analítica del Boleto:")
+                        st.markdown(val_resp.text)
+                    except Exception as e:
+                        st.error(f"Error al validar el boleto: {str(e)}")
 
-Cada vez que el agente te entregue un resultado (en el Radar, Auditoría Directa o Validación de Boleto), usará estrictamente esta estructura visual:
+        if st.button("🔄 Descartar esta auditoría y probar otro partido del Radar", type="secondary"):
+            st.session_state.audit_result = None
+            st.session_state.detail_images_list = []
+            st.rerun()
 
-#### **🚦 1. Veredicto Directo (Lo primero que debes leer)**
-* **Estado:** `🟢 APTO PARA APOSTAR` | `🟡 RIESGO MODERADO (AJUSTAR)` | `🔴 EVITAR / TRAMPA DE CASA`
-* **Acción sugerida:** Una frase de una sola línea indicando qué hacer (ej. *"Apuesta simple recomendada"* o *"Demasiadas selecciones, recorta los córners"*).
+# ---------------------------------------------------------
+# MODO 2: AUDITORÍA DIRECTA DE UN PARTIDO ESPECÍFICO
+# ---------------------------------------------------------
+else:
+    st.subheader("⚡ Modo Directo: Auditoría de un Partido Específico")
+    st.markdown("¿Tienes un partido en mente? Sube directamente la captura del encuentro o mercado para auditarlo.")
 
-#### **🎯 2. Resumen de la Jugada**
-* **Partido:** [Ej. Inter de Milán vs Como]
-* **Mercado:** [Ej. Victoria de Inter de Milán]
-* **Cuota:** `2.07` | **Probabilidad Estimada:** `58%` (vs `48%` implícita de la casa $\rightarrow$ **+EV Positivo**)
+    direct_match_name = st.text_input("Nombre del partido (opcional):", placeholder="Ej: Barcelona SC vs LDU")
+    
+    direct_files = st.file_uploader(
+        "Sube la captura de pantalla del partido o mercados:",
+        type=["png", "jpg", "jpeg"],
+        accept_multiple_files=True,
+        key="uploader_modo_directo"
+    )
 
-#### **🔍 3. ¿Por qué sí o por qué no? (En cristiano)**
-* Explicación libre de tecnicismos en 2 viñetas sencillas (ej. *"El Inter es sólido de local y el Como tiene 2 bajas clave en defensa"*, o *"Cuidado: el historial muestra que fallas mucho en este tipo de combinadas"*).
+    if direct_files:
+        st.session_state.direct_images_list = [Image.open(f) for f in direct_files]
 
-#### **💰 4. Gestión del Dinero (Stake)**
-* **Monto sugerido:** `$` [Cantidad exacta basada en tu bankroll]
-* **Advertencia de racha:** [Si estás en racha perdedora, el agente te dirá aquí: *"Usa la mitad de tu stake habitual por disciplina"*].
+    if st.session_state.direct_images_list:
+        d_cols = st.columns(min(len(st.session_state.direct_images_list), 4))
+        for idx, img in enumerate(st.session_state.direct_images_list):
+            with d_cols[idx % 4]:
+                st.image(img, use_container_width=True)
 
-#### **✂️ 5. Plan B / Ajuste del Boleto**
-* Si estás validando un boleto que tiene mucho riesgo, aquí te indicará exactamente qué borrar (ej. *"Borra la selección de córners y deja solo la doble oportunidad"*).
+        if st.button("❌ Quitar Capturas Directas", key="clear_direct"):
+            st.session_state.direct_images_list = []
+            st.rerun()
 
----
+    monto_directo = st.number_input("Monto a apostar ($ USD):", min_value=1.0, value=10.0, step=5.0, key="monto_directo")
+    instruccion_extra_d = st.text_area("💡 Nota adicional (Opcional):", placeholder="Ej: Considera bajas...", key="extra_prompt_d")
 
-### 🛠️ ¿Cómo lo aplicamos en el código?
+    if st.button("🚀 Auditar Partido Directo (Panel Rápido)", type="primary"):
+        if not st.session_state.direct_images_list:
+            st.warning("⚠️ Sube al menos una captura.")
+        else:
+            partido_ref = direct_match_name if direct_match_name else "Partido analizado por imagen"
+            with st.spinner("Analizando partido y web..."):
+                try:
+                    client = genai.Client(api_key=api_key)
+                    direct_prompt = f"""
+                    Eres un analista experto en apuestas. Audita el partido: "{partido_ref}".
+                    {resumen_mat}
+                    - Impuesto SRI: {retencion}% | Monto: ${monto_directo:.2f}
+                    
+                    Usa estrictamente este formato de Panel de Decisión Rápida:
 
-Con este formato estandarizado, ya no tendrás que adivinar dónde están los números importantes; tu vista irá directo a los colores del semáforo, la probabilidad y el veredicto en menos de 5 segundos.
+                    ### 🚦 Veredicto: [🟢 APTO / 🟡 RIESGOSO / 🔴 EVITAR]
+                    - **Partido:** {partido_ref}
+                    - **Mercado Evaluado:** [Indicar mercado]
+                    - **Cuota:** [...]
 
-¿Te parece bien si actualizamos los *prompts* internos del código en la próxima revisión para que el agente imprima **siempre** los resultados bajo esta plantilla visual y amigable?
+                    ### 💡 ¿Por qué tomar esta decisión?
+                    - **Bajas / Claves Web:** [Dato clave en 1 línea]
+                    - **Historial del usuario:** [Advertencia basada en sus categorías]
+
+                    ### 💰 Cuentas Claras (Post-SRI {retencion}%)
+                    - **Inversión:** ${monto_directo:.2f}
+                    - **Ganancia Neta Estimada:** $[...]
+                    - **Stake Recomendado:** [Bajo / Moderado / Alto]
+
+                    ### 🔀 Alternativa más segura
+                    - [Sugerencia si aplica]
+                    """
+                    res = client.models.generate_content(
+                        model='gemini-3.8-flash',
+                        contents=[direct_prompt] + st.session_state.direct_images_list,
+                        config=types.GenerateContentConfig(tools=[{"google_search": {}}])
+                    )
+                    st.session_state.direct_audit_result = res.text
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
+
+    if st.session_state.direct_audit_result:
+        st.markdown("---")
+        st.subheader("📊 Informe de Auditoría Directa")
+        st.markdown(st.session_state.direct_audit_result)
+
+        st.markdown("---")
+        st.subheader("🎫 Validación Anti-Margen de Boleto en Betano")
+        st.caption("Sube tu boleto. El agente evaluará si el margen compuesto de la casa es adecuado.")
+        
+        boleto_file_d = st.file_uploader("Sube captura del boleto de apuesta:", type=["png", "jpg", "jpeg"], key="boleto_d")
+        
+        if boleto_file_d:
+            boleto_img_d = Image.open(boleto_file_d)
+            st.image(boleto_img_d, caption="Boleto de Betano cargado", width=300)
+            if st.button("🔍 Validar Boleto y Evaluar Margen con Agente", key="val_bol_btn_d"):
+                with st.spinner("Analizando boleto..."):
+                    try:
+                        client_val_d = genai.Client(api_key=api_key)
+                        val_resp_d = client_val_d.models.generate_content(
+                            model='gemini-3.8-flash',
+                            contents=[f"""
+                            Analiza esta captura de boleto de Betano para el partido '{partido_ref}'.
+                            Usa estrictamente el formato de Panel de Decisión Rápida:
+                            ### 🚦 Veredicto de Boleto: [🟢 LISTO / 🟡 RECORTAR / 🔴 DESCARTAR]
+                            - **Cuota Total y Retorno:** [...]
+                            - **Análisis de Margen / Selecciones:** [...]
+                            """, boleto_img_d]
+                        )
+                        st.success("✔ Auditoría Analítica:")
+                        st.markdown(val_resp_d.text)
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+
+        if st.button("🔄 Descartar y probar otro partido", type="secondary"):
+            st.session_state.direct_audit_result = None
+            st.session_state.direct_images_list = []
+            st.rerun()
+
+# ---------------------------------------------------------
+# SECCIÓN 3: HISTORIAL
+# ---------------------------------------------------------
+st.markdown("---")
+with st.expander("📂 Ver y Administrar Historial Completo de Apuestas"):
+    if st.session_state.historial:
+        st.dataframe(st.session_state.historial, use_container_width=True)
+        if st.button("🗑️ Borrar todo el Historial de Apuestas"):
+            st.session_state.historial = []
+            if os.path.exists(HISTORY_FILE):
+                os.remove(HISTORY_FILE)
+            st.success("Historial reiniciado correctamente.")
+            st.rerun()
+    else:
+        st.info("No hay apuestas registradas todavía.")
