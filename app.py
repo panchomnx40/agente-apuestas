@@ -6,10 +6,11 @@ import os
 import json
 import re
 from collections import Counter
+import pandas as pd
 
 # Configuración inicial de la página
 st.set_page_config(
-    page_title="Value Radar - Auditor de Apuestas",
+    page_title="Value Radar - Auditor de Apuestas Pro",
     page_icon="⚽",
     layout="wide"
 )
@@ -35,41 +36,94 @@ def guardar_historial(historial):
     except Exception as e:
         st.error(f"Error al guardar el historial: {str(e)}")
 
-def calcular_estadisticas_matematicas(historial):
-    """Calcula de forma exacta métricas y winrates por categoría usando Python."""
+def calcular_metricas_avanzadas(historial):
+    """Calcula ROI, Curva de Bankroll, Rachas y Métricas por Categoría con Python."""
     if not historial:
-        return "Aún no hay historial registrado."
+        return None, "Aún no hay historial suficiente para métricas avanzadas."
     
-    stats_cat = {}
-    total_g = 0
-    total_p = 0
-    total_n = 0
+    total_inversion = 0.0
+    ganancia_neta_total = 0.0
+    balance_acumulado = []
     
-    for h in historial:
-        cat = h.get("categoria", "General / Otro")
+    cat_stats = {}
+    racha_actual = 0  # Positivo para ganadas, negativo para perdidas
+    max_racha_ganadora = 0
+    max_racha_perdedora = 0
+    temp_g = 0
+    temp_p = 0
+    
+    for idx, h in enumerate(historial):
+        monto = float(h.get("monto", 0.0))
         res = h.get("resultado", "")
-        if cat not in stats_cat:
-            stats_cat[cat] = {"ganadas": 0, "perdidas": 0, "total": 0}
+        cat = h.get("categoria", "BetBuilder Mixto")
         
-        stats_cat[cat]["total"] += 1
+        if cat not in cat_stats:
+            cat_stats[cat] = {"total": 0, "ganadas": 0, "perdidas": 0, "inversion": 0.0}
+        
+        cat_stats[cat]["total"] += 1
+        cat_stats[cat]["inversion"] += monto
+        total_inversion += monto
+        
+        # Estimar retorno simulado o real del resultado
         if res == "Ganada":
-            stats_cat[cat]["ganadas"] += 1
-            total_g += 1
-        elif res == "Perdida":
-            stats_cat[cat]["perdidas"] += 1
-            total_p += 1
-        elif res == "Nula" or res == "Cash Out":
-            pass
+            # Asumimos ganancia neta estimada promedio de cuota 1.85 si no se especifica cuota
+            ganancia_neta = monto * 0.85 
+            ganancia_neta_total += ganancia_neta
+            cat_stats[cat]["ganadas"] += 1
+            
+            # Rachas
+            temp_g += 1
+            temp_p = 0
+            if temp_g > max_racha_ganadora: max_racha_ganadora = temp_g
+            racha_actual = temp_g if racha_actual >= 0 else 1
 
-    resumen_txt = "📊 MÉTRICAS MATEMÁTICAS EXACTAS DEL HISTORIAL:\n"
-    for cat, data in stats_cat.items():
-        t = data["total"]
-        g = data["ganadas"]
-        p = data["perdidas"]
-        wr = (g / t * 100) if t > 0 else 0.0
-        resumen_txt += f"- Categoría [{cat}] -> Total: {t} | Ganadas: {g} | Pérdidas: {p} | Efectividad (Winrate): {wr:.1f}%\n"
+        elif res == "Perdida":
+            ganancia_neta = -monto
+            ganancia_neta_total += ganancia_neta
+            cat_stats[cat]["perdidas"] += 1
+            
+            # Rachas
+            temp_p += 1
+            temp_g = 0
+            if temp_p > max_racha_perdedora: max_racha_perdedora = temp_p
+            racha_actual = -temp_p if racha_actual <= 0 else -1
+
+        else: # Cash Out o Nula
+            ganancia_neta = 0.0
+        
+        balance_acumulado.append({
+            "Apuesta #": idx + 1,
+            "Balance Acumulado ($)": round(ganancia_neta_total, 2),
+            "Partido": h.get("partido", "")
+        })
+
+    roi = (ganancia_neta_total / total_inversion * 100) if total_inversion > 0 else 0.0
     
-    return resumen_txt
+    resumen_txt = f"""
+    📊 MÉTRICAS CUANTITATIVAS PRO DE PYTHON:
+    - Inversión Total: ${total_inversion:.2f} USD | Ganancia Neta Est.: ${ganancia_neta_total:.2f} USD
+    - ROI (Retorno de Inversión): {roi:.2f}%
+    - Racha Actual: {'🟢 ' + str(racha_actual) + ' Ganadas' if racha_actual > 0 else '🔴 ' + str(abs(racha_actual)) + ' Perdidas'}
+    - Máxima Racha Ganadora: {max_racha_ganadora} | Máxima Racha Perdedora: {max_racha_perdedora}
+    
+    EFECTIVIDAD POR CATEGORÍAS:
+    """
+    for cat, d in cat_stats.items():
+        wr = (d['ganadas'] / d['total'] * 100) if d['total'] > 0 else 0.0
+        resumen_txt += f"  * [{cat}] -> Apuestas: {d['total']} | Winrate: {wr:.1f}% (🟢 {d['ganadas']} G / 🔴 {d['perdidas']} P)\n"
+
+    df_bankroll = pd.DataFrame(balance_acumulado)
+    
+    return {
+        "roi": roi,
+        "total_inversion": total_inversion,
+        "ganancia_neta": ganancia_neta_total,
+        "racha_actual": racha_actual,
+        "max_g": max_racha_ganadora,
+        "max_p": max_racha_perdedora,
+        "df_bankroll": df_bankroll,
+        "resumen_txt": resumen_txt
+    }, resumen_txt
 
 # ---------------------------------------------------------
 # CONTROL DE ACCESO
@@ -116,8 +170,8 @@ if "direct_audit_result" not in st.session_state:
     st.session_state.direct_audit_result = None
 
 # Encabezado principal
-st.title("⚽ Value Radar: Escáner, Auditor y Memoria de Aprendizaje")
-st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Validación anti-margen de boleto. **3)** Estadísticas exactas con Python.")
+st.title("⚽ Value Radar: Escáner, Auditor y Memoria de Aprendizaje Pro")
+st.markdown("Sistema inteligente: **1)** Radar o Modo Directo. **2)** Métricas Financieras (ROI/Bankroll). **3)** Auditoría Anti-Margen Betano.")
 
 # ---------------------------------------------------------
 # BARRA LATERAL (Configuración, Rendimiento y Respaldo)
@@ -152,7 +206,10 @@ with st.sidebar:
     )
     
     st.markdown("---")
-    st.subheader("📊 Resumen de Rendimiento")
+    st.subheader("📊 Métricas Pro y Rendimiento")
+    
+    metrics_data, resumen_mat = calcular_metricas_avanzadas(st.session_state.historial)
+    
     total_apuestas = len(st.session_state.historial)
     ganadas = sum(1 for h in st.session_state.historial if h["resultado"] == "Ganada")
     perdidas = sum(1 for h in st.session_state.historial if h["resultado"] == "Perdida")
@@ -160,17 +217,15 @@ with st.sidebar:
     
     st.metric("Total Registradas", total_apuestas)
     st.metric("Efectividad (Winrate)", f"{winrate:.1f}%", f"🟢 {ganadas} G / 🔴 {perdidas} P")
-
-    # Alerta visual basada en análisis de Python
-    if perdidas > 0:
-        categorias_perdidas = []
-        for h in st.session_state.historial:
-            if h["resultado"] == "Perdida":
-                cat = h.get("categoria", "General / Otro")
-                categorias_perdidas.append(cat)
-        if categorias_perdidas:
-            mas_comun = Counter(categorias_perdidas).most_common(1)[0]
-            st.warning(f"⚠️ **Mayor foco de fallo:** `{mas_comun[0]}` ({mas_comun[1]} derrotas)")
+    
+    if metrics_data:
+        st.metric("ROI Estimado", f"{metrics_data['roi']:.2f}%", f"${metrics_data['ganancia_neta']:.2f} Netos")
+        
+        r_actual = metrics_data['racha_actual']
+        if r_actual < 0:
+            st.error(f"⚠️ **Racha Perdedora Activa:** {abs(r_actual)} derrotas seguidas")
+        elif r_actual > 0:
+            st.success(f"🔥 **Racha Ganadora Activa:** {r_actual} victorias seguidas")
 
     # Respaldo: Descargar y CARGAR archivo JSON
     st.markdown("---")
@@ -201,7 +256,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("📥 Sincronizar Historial Global (Betano)")
-    st.caption("Sube tu captura del historial de Betano para actualizar los cálculos estadísticos en Python.")
+    st.caption("Sube tu captura del historial de Betano para desglosar selecciones y métricas de ROI.")
     
     historial_global_file = st.file_uploader("Captura de historial Betano:", type=["png", "jpg", "jpeg"], key="historial_global_upload")
     
@@ -212,7 +267,7 @@ with st.sidebar:
             if not api_key:
                 st.error("Falta la clave API.")
             else:
-                with st.spinner("Leyendo historial y procesando métricas..."):
+                with st.spinner("Leyendo historial y desglosando selecciones..."):
                     try:
                         client_h = genai.Client(api_key=api_key)
                         prompt_h = """
@@ -220,8 +275,9 @@ with st.sidebar:
                         Extrae cada apuesta mostrada detallando estrictamente:
                         - "partido": Nombre del evento o enfrentamiento.
                         - "tipo_apuesta": Especifica si fue 'Simple' o 'Combinada (Parley)'.
-                        - "mercado": Detalle completo de los mercados o selecciones realizadas.
-                        - "categoria": La categoría principal (Elige una de estas: 'Córners', 'Goles / Over-Under', 'Resultado del Partido / 1X2', 'Doble Oportunidad', 'BetBuilder Mixto', o 'Tarjetas/Otros').
+                        - "mercado": Detalle completo de los mercados en texto.
+                        - "desglose_selecciones": Lista de cada selección individual del BetBuilder con su estado ('Ganada' o 'Perdida'). Ejemplo: [{"seleccion": "Menos 4.5 Goles", "estado": "Ganada"}].
+                        - "categoria": Categoría principal ('Córners', 'Goles / Over-Under', 'Resultado del Partido / 1X2', 'Doble Oportunidad', 'BetBuilder Mixto', o 'Tarjetas/Otros').
                         - "resultado": Estado exacto ('Ganada', 'Perdida', 'Nula' o 'Cash Out').
                         - "monto": Monto invertido (número flotante).
                         
@@ -231,6 +287,10 @@ with st.sidebar:
                             "partido": "Equipo A - Equipo B", 
                             "tipo_apuesta": "Simple", 
                             "mercado": "BetBuilder: Más de 2.5 Goles + Más de 7.5 Córners", 
+                            "desglose_selecciones": [
+                              {"seleccion": "Más de 2.5 Goles", "estado": "Ganada"},
+                              {"seleccion": "Más de 7.5 Córners", "estado": "Perdida"}
+                            ],
                             "categoria": "BetBuilder Mixto",
                             "resultado": "Perdida", 
                             "monto": 10.0
@@ -251,10 +311,9 @@ with st.sidebar:
                         nuevos_registros = json.loads(texto_json)
                         if isinstance(nuevos_registros, list):
                             for reg in nuevos_registros:
-                                if "tipo_apuesta" not in reg:
-                                    reg["tipo_apuesta"] = "Simple"
-                                if "categoria" not in reg:
-                                    reg["categoria"] = "General / Otro"
+                                if "tipo_apuesta" not in reg: reg["tipo_apuesta"] = "Simple"
+                                if "desglose_selecciones" not in reg: reg["desglose_selecciones"] = []
+                                if "categoria" not in reg: reg["categoria"] = "General / Otro"
                                 st.session_state.historial.append(reg)
                             guardar_historial(st.session_state.historial)
                             st.success(f"✅ ¡Se han integrado {len(nuevos_registros)} apuestas al historial!")
@@ -263,6 +322,13 @@ with st.sidebar:
                             st.error("El formato extraído no es una lista válida.")
                     except Exception as e:
                         st.error(f"No se pudo procesar la imagen del historial: {str(e)}")
+
+# ---------------------------------------------------------
+# VISUALIZACIÓN GRAFICA DEL BANKROLL
+# ---------------------------------------------------------
+if metrics_data and not metrics_data["df_bankroll"].empty:
+    with st.expander("📈 Ver Curva de Crecimiento del Bankroll (Evolución de Capital)", expanded=False):
+        st.line_chart(metrics_data["df_bankroll"], x="Apuesta #", y="Balance Acumulado ($)")
 
 # ---------------------------------------------------------
 # SELECTOR DE MODO DE OPERACIÓN
@@ -359,7 +425,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
             st.rerun()
 
         st.markdown("---")
-        st.subheader("Fase 2: Auditoría Quirúrgica con Memoria Analítica (Python)")
+        st.subheader("Fase 2: Auditoría Quirúrgica con Métricas Financieras (Python)")
         
         options = st.session_state.detected_matches + ["Otro (Escribir manualmente)"]
         selected_option = st.selectbox("Elige el partido a auditar del radar:", options)
@@ -408,41 +474,38 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
             key="extra_prompt_f2"
         )
 
-        if st.button("🚀 Auditar con Métricas Exactas (Web Search + SRI + Margen)", type="primary"):
+        if st.button("🚀 Auditar con Métricas Financieras (ROI + Web + SRI)", type="primary"):
             if not target_match:
                 st.warning("⚠️ Selecciona o ingresa un partido para auditar.")
             else:
-                with st.spinner(f"Analizando '{target_match}' cruzando métricas matemáticas de efectividad y web..."):
+                with st.spinner(f"Analizando '{target_match}' cruzando métricas avanzadas de ROI y web..."):
                     try:
                         client = genai.Client(api_key=api_key)
                         
-                        # Generar el resumen estadístico exacto procesado por Python
-                        resumen_matematico = calcular_estadisticas_matematicas(st.session_state.historial)
-
                         nota_usuario = f"\nNOTA EXTRA DEL USUARIO: {instruccion_extra}\n" if instruccion_extra else ""
 
                         audit_prompt = f"""
-                        Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con motor analítico basado en métricas de Python.
+                        Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con motor analítico de ROI y gestión cuantitativa de riesgo.
                         El usuario va a auditar el siguiente partido: "{target_match}".
                         
-                        {resumen_matematico}
+                        {resumen_mat}
                         {nota_usuario}
                         
-                        PARÁMETROS DE CONFIGURACIÓN Y REGLAS DE ALGORITMO:
+                        PARÁMETROS DE CONFIGURACIÓN Y MÁRGENES DE BETANO:
                         - Impuesto SRI (Ecuador): {retencion}% sobre la ganancia neta.
                         - Probabilidad Mínima Exigida: {prob_min}%.
                         - Monto planificado para apostar: ${monto_apuesta:.2f} USD.
-                        - REGLA DE MÁRGENES DE CASA (BETANO): Ten en cuenta que los algoritmos de Betano aplican márgenes compuestos elevados (vig) y penalizaciones en BetBuilders complejos. Si el usuario propone selecciones múltiples o BetBuilders de más de 3 elementos, evalúa con rigor matemático si el valor esperado compensa el margen acumulado de la casa.
+                        - REGLA ANTI-CASA (BETANO): Revisa la efectividad real en BetBuilders mixtos. Si el usuario plantea combinar más de 2 selecciones de alto riesgo, adviértele que el margen acumulado (vig) penaliza su ROI esperado. Si está en racha perdedora, recomiéndale reducir el Stake.
                         
                         INSTRUCCIONES DE FORMATO Y CONTENIDO:
                         1. UTILIZA OBLIGATORIAMENTE Google Search para buscar noticias recientes, bajas y lesiones de este evento.
-                        2. Analiza los winrates exactos calculados por categoría en Python para advertirle al usuario en qué mercados debe reducir el riesgo.
+                        2. Integra los datos de ROI y Winrate exacto por categoría en tu análisis.
                         3. Genera el informe estructurado:
                            - 📌 **EVENTO Y MERCADOS EVALUADOS**
-                           - 📊 **ANÁLISIS DE RENDIMIENTO MATEMÁTICO (EFECTIVIDAD POR CATEGORÍA)**
+                           - 📊 **ANÁLISIS DE RENDIMIENTO Y ROI HISTÓRICO (MÉTRICAS EXACTAS)**
                            - 🌐 **INVESTIGACIÓN Y NOTICIAS DE LA WEB (ÚLTIMO MINUTO)**
                            - 💰 **CÁLCULO FINANCIERO Y GANANCIA NETA (POST-SRI {retencion}%)**
-                           - 💡 **VEREDICTO FINAL Y RECOMENDACIÓN DE STAKE Y LÍMITE DE SELECCIONES**
+                           - 💡 **VEREDICTO FINAL Y RECOMENDACIÓN DE STAKE REVISADO**
                            - 🔀 **COMBINACIONES O MERCADOS ALTERNATIVOS**
                         """
                         contents = [audit_prompt] + st.session_state.detail_images_list
@@ -456,7 +519,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                         st.session_state.audit_result = audit_response.text
 
                     except Exception as e:
-                        st.error(f"Ocurrió un error en el escaneo/auditoría: {str(e)}")
+                        st.error(f"Ocurrió un error en la auditoría: {str(e)}")
 
     if st.session_state.audit_result:
         st.markdown("---")
@@ -465,7 +528,7 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
 
         st.markdown("---")
         st.subheader("🎫 Validación Anti-Margen de Boleto en Betano")
-        st.caption("Sube tu boleto. El agente evaluará si el margen compuesto de la casa es adecuado o si requiere un ajuste.")
+        st.caption("Sube tu boleto final de Betano para verificar el número de selecciones y margen.")
         
         boleto_file = st.file_uploader("Sube captura del boleto de apuesta:", type=["png", "jpg", "jpeg"], key="boleto_f2")
         
@@ -482,8 +545,8 @@ if modo_operacion == "🎯 Modo Radar: Escanear cartelera completa de partidos":
                             Eres un analista experto en gestión de riesgo y optimización de apuestas deportivas.
                             Analiza esta captura de boleto de Betano en relación con el partido auditado ('{target_match}').
                             Por favor evalúa detalladamente y entrega:
-                            1. 🔍 **Verificación de Cuotas y Margen:** Confirma si la cuota refleja valor o si el margen compuesto (vig) de la casa es excesivo.
-                            2. ⚠️ **Análisis de Riesgo y Exceso de Selecciones:** Revisa si el Bet Builder o combinación tiene demasiadas patas que perjudiquen la probabilidad real.
+                            1. 🔍 **Verificación de Cuotas y Margen:** Confirma si la cuota refleja valor o si el margen compuesto de la casa es excesivo.
+                            2. ⚠️ **Análisis de Riesgo y Exceso de Selecciones:** Revisa si el Bet Builder tiene demasiadas patas que perjudiquen la probabilidad real.
                             3. 💡 **Veredicto de Validación:** Indica claramente si el boleto está LISTO PARA APOSTAR o si requiere recorte.
                             """, boleto_img]
                         )
@@ -544,7 +607,7 @@ else:
         key="extra_prompt_d"
     )
 
-    if st.button("🚀 Auditar Partido Directo (Métricas Python + Web + Margen)", type="primary"):
+    if st.button("🚀 Auditar Partido Directo (Métricas ROI + Web + Margen)", type="primary"):
         if not st.session_state.direct_images_list:
             st.warning("⚠️ Sube al menos una captura del partido o mercado.")
         else:
@@ -553,33 +616,31 @@ else:
                 try:
                     client = genai.Client(api_key=api_key)
                     
-                    # Generar el resumen estadístico exacto procesado por Python
-                    resumen_matematico_d = calcular_estadisticas_matematicas(st.session_state.historial)
-
                     nota_usuario_d = f"\nNOTA EXTRA DEL USUARIO: {instruccion_extra_d}\n" if instruccion_extra_d else ""
 
                     direct_prompt = f"""
-                    Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con motor analítico basado en métricas de Python.
+                    Eres un agente autónomo experto en auditoría de apuestas deportivas de alto valor (+EV) con motor analítico de ROI y gestión cuantitativa de riesgo.
                     El usuario va a auditar directamente un partido/mercado. Referencia: "{partido_ref}".
                     
-                    {resumen_matematico_d}
+                    {resumen_mat}
                     {nota_usuario_d}
                     
-                    PARÁMETROS DE CONFIGURACIÓN Y REGLAS DE ALGORITMO:
+                    PARÁMETROS DE CONFIGURACIÓN Y MÁRGENES DE BETANO:
                     - Impuesto SRI (Ecuador): {retencion}% sobre la ganancia neta.
                     - Probabilidad Mínima Exigida: {prob_min}%.
                     - Monto planificado para apostar: ${monto_directo:.2f} USD.
-                    - REGLA DE MÁRGENES DE CASA (BETANO): Ten en cuenta que los algoritmos de Betano aplican márgenes compuestos elevados (vig) y penalizaciones en BetBuilders complejos. Si el usuario propone selecciones múltiples o BetBuilders de más de 3 elementos, evalúa con rigor matemático si el valor esperado compensa el margen acumulado de la casa.
+                    - REGLA ANTI-CASA (BETANO): Revisa la efectividad real en BetBuilders mixtos. Si el usuario plantea combinar más de 2 selecciones de alto riesgo, adviértele que el margen acumulado (vig) penaliza su ROI esperado. Si está en racha perdedora, recomiéndale reducir el Stake.
                     
                     INSTRUCCIONES DE FORMATO Y CONTENIDO:
                     1. Identifica claramente los equipos y el mercado en la(s) imagen(es).
                     2. UTILIZA OBLIGATORIAMENTE Google Search para buscar noticias recientes, bajas y lesiones de este evento.
-                    3. Analiza las métricas exactas calculadas por categoría y genera el informe estructurado:
+                    3. Integra los datos de ROI y Winrate exacto por categoría en tu análisis.
+                    4. Genera el informe estructurado:
                        - 📌 **EVENTO Y MERCADOS IDENTIFICADOS**
-                       - 📊 **ANÁLISIS DE RENDIMIENTO MATEMÁTICO (EFECTIVIDAD POR CATEGORÍA)**
+                       - 📊 **ANÁLISIS DE RENDIMIENTO Y ROI HISTÓRICO (MÉTRICAS EXACTAS)**
                        - 🌐 **INVESTIGACIÓN Y NOTICIAS DE LA WEB (ÚLTIMO MINUTO)**
                        - 💰 **CÁLCULO FINANCIERO Y GANANCIA NETA (POST-SRI {retencion}%)**
-                       - 💡 **VEREDICTO FINAL Y RECOMENDACIÓN DE STAKE Y LÍMITE DE SELECCIONES**
+                       - 💡 **VEREDICTO FINAL Y RECOMENDACIÓN DE STAKE REVISADO**
                        - 🔀 **COMBINACIONES O MERCADOS ALTERNATIVOS**
                     """
                     contents = [direct_prompt] + st.session_state.direct_images_list
@@ -619,8 +680,8 @@ else:
                             Eres un analista experto en gestión de riesgo y optimización de apuestas deportivas.
                             Analiza esta captura de boleto de Betano en relación con el partido auditado ('{direct_match_name}').
                             Por favor evalúa detalladamente y entrega:
-                            1. 🔍 **Verificación de Cuotas y Margen:** Confirma si la cuota refleja valor o si el margen compuesto (vig) de la casa es excesivo.
-                            2. ⚠️ **Análisis de Riesgo y Exceso de Selecciones:** Revisa si el Bet Builder o combinación tiene demasiadas patas que perjudiquen la probabilidad real.
+                            1. 🔍 **Verificación de Cuotas y Margen:** Confirma si la cuota refleja valor o si el margen compuesto de la casa es excesivo.
+                            2. ⚠️ **Análisis de Riesgo y Exceso de Selecciones:** Revisa si el Bet Builder tiene demasiadas patas que perjudiquen la probabilidad real.
                             3. 💡 **Veredicto de Validación:** Indica claramente si el boleto está LISTO PARA APOSTAR o si requiere un ajuste adicional.
                             """, boleto_img_d]
                         )
